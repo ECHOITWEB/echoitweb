@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "buildCommand": "bun run build",
+  "outputDirectory": ".next",
+  "installCommand": "bun install",
+  "framework": "nextjs",
+  "regions": ["icn1"],
+  "env": {
+    "MONGODB_URI": "mongodb+srv://echoitplanning1:Xksgb135@echoitadmin.mdq2h.mongodb.net/echoit?retryWrites=true&w=majority&appName=ECHOITADMIN",
+    "JWT_SECRET": "echoit-production-secret-key-2024",
+    "JWT_EXPIRY": "12h",
+    "JWT_REFRESH_EXPIRY": "7d"
+  },
+  "images": {
+    "domains": ["source.unsplash.com", "images.unsplash.com", "ext.same-assets.com", "ugc.same-assets.com", "*.vercel.app"],
+    "remotePatterns": [
+      {
+        "protocol": "https",
+        "hostname": "source.unsplash.com"
+      },
+      {
+        "protocol": "https",
+        "hostname": "images.unsplash.com"
+      },
+      {
+        "protocol": "https",
+        "hostname": "ext.same-assets.com"
+      },
+      {
+        "protocol": "https",
+        "hostname": "ugc.same-assets.com"
+      },
+      {
+        "protocol": "https",
+        "hostname": "**.vercel.app"
+      }
+    ]
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}

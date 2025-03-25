@@ -1,0 +1,51 @@
+[images]
+  remote_images = ["https://source.unsplash.com/.*", "https://images.unsplash.com/.*", "https://ext.same-assets.com/.*", "https://ugc.same-assets.com/.*"]
+
+[build]
+  publish = ".next"
+  command = "bun run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+  NETLIFY_NEXT_PLUGIN_SKIP = "false"
+
+[functions]
+  # 더 긴 함수 타임아웃 설정 (30초)
+  node_bundler = "esbuild"
+  external_node_modules = ["bcrypt"]
+
+# 관리자 페이지용 리다이렉트 규칙
+[[redirects]]
+  from = "/admin/*"
+  to = "/.netlify/functions/next"
+  status = 200
+  force = true
+
+# 일반 페이지용 리다이렉트
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/next"
+  status = 200
+
+# 정적 파일 캐시 설정
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Next.js 플러그인 활성화 - 서버 사이드 렌더링 지원
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
