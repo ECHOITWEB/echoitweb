@@ -180,7 +180,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           <div className="px-4 mb-6">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                <span className="font-semibold">로그인:</span> {user}
+                <span className="font-semibold">로그인:</span> {user?.username || 'Guest'}
               </p>
               <button
                 onClick={toggleDarkMode}
