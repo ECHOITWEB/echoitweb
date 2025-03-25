@@ -3,14 +3,12 @@ const nextConfig = {
   reactStrictMode: true,
   // 이미지 최적화 활성화
   images: {
-    sizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     domains: [
       "source.unsplash.com",
       "images.unsplash.com",
       "ext.same-assets.com",
       "ugc.same-assets.com",
-      "same-2m68l63tuum-latest.netlify.app",
-      "echoit-clone.vercel.app",
+      "echoitweb.vercel.app",
     ],
     remotePatterns: [
       {
