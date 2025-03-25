@@ -1,72 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
-import { mkdir } from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const formData = await req.formData();
+    const formData = await request.formData();
     const file = formData.get('file') as File;
 
     if (!file) {
       return NextResponse.json(
-        { success: false, message: '파일이 업로드되지 않았습니다.' },
+        { error: '파일이 없습니다.' },
         { status: 400 }
       );
     }
 
-    // Check file size (5MB limit)
-    const sizeLimit = 5 * 1024 * 1024; // 5MB
-    if (file.size > sizeLimit) {
+    // 파일 확장자 확인
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { success: false, message: '파일 크기가 5MB를 초과합니다.' },
+        { error: '지원하지 않는 파일 형식입니다.' },
         { status: 400 }
       );
     }
 
-    // Check file type (images only)
-    if (!file.type.startsWith('image/')) {
+    // 파일 크기 제한 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json(
-        { success: false, message: '이미지 파일만 업로드할 수 있습니다.' },
+        { error: '파일 크기는 5MB를 초과할 수 없습니다.' },
         { status: 400 }
       );
     }
 
-    // Convert file to buffer
+    // 파일 저장
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Generate a unique filename with proper extension
-    const extension = file.name.split('.').pop() || 'jpg';
-    const filename = `${randomUUID()}.${extension}`;
+    // 고유한 파일명 생성
+    const uniqueId = uuidv4();
+    const extension = file.name.split('.').pop();
+    const fileName = `${uniqueId}.${extension}`;
 
-    // Create uploads directory if it doesn't exist
-    const uploadDir = join(process.cwd(), 'public', 'uploads');
-    try {
-      await mkdir(uploadDir, { recursive: true });
-    } catch (err) {
-      // Directory already exists or can't be created
-      console.error('Error creating upload directory:', err);
-    }
+    // 파일 저장 경로
+    const path = join(process.cwd(), 'public/uploads', fileName);
+    await writeFile(path, buffer);
 
-    // Write the file
-    const filepath = join(uploadDir, filename);
-    await writeFile(filepath, buffer);
-
-    // Return the URL to the uploaded file
-    const fileUrl = `/uploads/${filename}`;
-
-    return NextResponse.json({
-      success: true,
-      message: '파일이 성공적으로 업로드되었습니다.',
-      url: fileUrl
-    });
+    // 파일 URL 반환
+    const url = `/uploads/${fileName}`;
+    return NextResponse.json({ url });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('파일 업로드 중 오류:', error);
     return NextResponse.json(
-      { success: false, message: '파일 업로드 중 오류가 발생했습니다.' },
+      { error: '파일 업로드에 실패했습니다.' },
       { status: 500 }
     );
   }

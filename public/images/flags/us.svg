@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="900" height="600" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="600" fill="#fff"/>
+  <g fill="#bf0a30">
+    <rect width="900" height="46.15" y="0"/>
+    <rect width="900" height="46.15" y="92.3"/>
+    <rect width="900" height="46.15" y="184.6"/>
+    <rect width="900" height="46.15" y="276.9"/>
+    <rect width="900" height="46.15" y="369.2"/>
+    <rect width="900" height="46.15" y="461.5"/>
+    <rect width="900" height="46.15" y="553.8"/>
+  </g>
+  <rect width="360" height="323.1" fill="#002868"/>
+  <g fill="#fff">
+    <g id="star">
+      <polygon points="0,-10 2.351,-3.236 9.511,-3.236 3.804,1.236 5.878,8 0,4 -5.878,8 -3.804,1.236 -9.511,-3.236 -2.351,-3.236"/>
+    </g>
+    <g id="row1">
+      <use href="#star" transform="translate(30,27.5)"/>
+      <use href="#star" transform="translate(90,27.5)"/>
+      <use href="#star" transform="translate(150,27.5)"/>
+      <use href="#star" transform="translate(210,27.5)"/>
+      <use href="#star" transform="translate(270,27.5)"/>
+      <use href="#star" transform="translate(330,27.5)"/>
+    </g>
+    <g id="row2">
+      <use href="#star" transform="translate(60,55)"/>
+      <use href="#star" transform="translate(120,55)"/>
+      <use href="#star" transform="translate(180,55)"/>
+      <use href="#star" transform="translate(240,55)"/>
+      <use href="#star" transform="translate(300,55)"/>
+    </g>
+    <use href="#row1" transform="translate(0,55)"/>
+    <use href="#row2" transform="translate(0,55)"/>
+    <use href="#row1" transform="translate(0,110)"/>
+    <use href="#row2" transform="translate(0,110)"/>
+    <use href="#row1" transform="translate(0,165)"/>
+    <use href="#row2" transform="translate(0,165)"/>
+    <use href="#row1" transform="translate(0,220)"/>
+    <use href="#row2" transform="translate(0,220)"/>
+    <use href="#row1" transform="translate(0,275)"/>
+  </g>
+</svg> 

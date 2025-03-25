@@ -2,38 +2,61 @@
 
 import React from 'react'
 import { useLanguage } from '@/context/language-context'
-import { cn } from '@/lib/utils'
+import ReactCountryFlag from 'react-country-flag'
+import { Button } from './button'
+import { translateText } from '@/lib/utils/translation'
 
-export function LanguageSwitcher({ className }: { className?: string }) {
+interface LanguageSwitcherProps {
+  iconStyle?: boolean;
+  onLanguageChange?: (lang: 'ko' | 'en') => void;
+}
+
+export function LanguageSwitcher({ iconStyle = false, onLanguageChange }: LanguageSwitcherProps) {
   const { language, setLanguage } = useLanguage()
 
+  const handleLanguageChange = async (newLang: 'ko' | 'en') => {
+    setLanguage(newLang)
+    if (onLanguageChange) {
+      onLanguageChange(newLang)
+    }
+  }
+
   return (
-    <div className={cn("flex items-center", className)}>
-      <button
-        onClick={() => setLanguage('ko')}
-        className={cn(
-          "px-2 py-1 text-sm transition-colors",
-          language === 'ko'
-            ? "font-bold text-echoit-primary"
-            : "text-gray-500 hover:text-gray-700"
-        )}
-        aria-label="Switch to Korean"
+    <div className="flex items-center space-x-2">
+      <Button
+        variant={language === 'ko' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => handleLanguageChange('ko')}
+        className="flex items-center space-x-1"
       >
-        KO
-      </button>
-      <span className="text-gray-300 mx-1">|</span>
-      <button
-        onClick={() => setLanguage('en')}
-        className={cn(
-          "px-2 py-1 text-sm transition-colors",
-          language === 'en'
-            ? "font-bold text-echoit-primary"
-            : "text-gray-500 hover:text-gray-700"
-        )}
-        aria-label="Switch to English"
+        <ReactCountryFlag
+          countryCode="KR"
+          svg
+          style={{
+            width: '1.2em',
+            height: '1.2em',
+          }}
+          title="South Korea"
+        />
+        {!iconStyle && <span>한국어</span>}
+      </Button>
+      <Button
+        variant={language === 'en' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => handleLanguageChange('en')}
+        className="flex items-center space-x-1"
       >
-        EN
-      </button>
+        <ReactCountryFlag
+          countryCode="US"
+          svg
+          style={{
+            width: '1.2em',
+            height: '1.2em',
+          }}
+          title="United States"
+        />
+        {!iconStyle && <span>English</span>}
+      </Button>
     </div>
   )
 }

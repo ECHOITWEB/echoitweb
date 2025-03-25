@@ -7,9 +7,19 @@ import { ArrowLeft, Save, Image as ImageIcon, Upload, Link, Check } from 'lucide
 import BlogEditor from '@/components/ui/blog-editor';
 import FileUpload from '@/components/ui/file-upload';
 import { translateText } from '@/lib/utils/translation';
+import { useToast } from '@/components/ui/use-toast';
+import { useLanguage } from '@/context/language-context';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 
 export default function CreateNewsPostPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const { t } = useLanguage();
+
   const [formData, setFormData] = useState({
     title: {
       ko: '',
@@ -38,6 +48,7 @@ export default function CreateNewsPostPage() {
   const [activeTab, setActiveTab] = useState<'ko' | 'en'>('ko');
   const [isTitleTranslating, setIsTitleTranslating] = useState(false);
   const [isExcerptTranslating, setIsExcerptTranslating] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -179,6 +190,45 @@ export default function CreateNewsPostPage() {
     }
   };
 
+  // 한글 내용이 변경될 때마다 자동 번역
+  useEffect(() => {
+    const translateContent = async () => {
+      if (!formData.title.ko || isTranslating) return;
+      
+      setIsTranslating(true);
+      try {
+        const [translatedTitle, translatedContent] = await Promise.all([
+          translateText(formData.title.ko, 'ko', 'en'),
+          translateText(formData.content.ko, 'ko', 'en')
+        ]);
+        
+        setFormData({
+          ...formData,
+          title: {
+            ...formData.title,
+            en: translatedTitle,
+          },
+          content: {
+            ...formData.content,
+            en: translatedContent
+          },
+        });
+      } catch (error) {
+        console.error('번역 중 오류 발생:', error);
+        toast({
+          title: '번역 오류',
+          description: '자동 번역 중 오류가 발생했습니다. 수동으로 입력해주세요.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsTranslating(false);
+      }
+    };
+
+    const debounceTimeout = setTimeout(translateContent, 1000);
+    return () => clearTimeout(debounceTimeout);
+  }, [formData.title.ko, formData.content.ko]);
+
   if (isSuccess) {
     return (
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md text-center">
@@ -211,282 +261,146 @@ export default function CreateNewsPostPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md space-y-6">
-          {/* 게시글 기본 정보 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* 제목 (왼쪽 열) */}
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="title.ko" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    제목 (한글) <span className="text-red-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleTitleTranslate}
-                    disabled={isTitleTranslating || !formData.title.ko.trim()}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center disabled:opacity-50"
-                  >
-                    {isTitleTranslating ? '번역 중...' : '영어로 번역'}
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  id="title.ko"
-                  name="title.ko"
-                  value={formData.title.ko}
-                  onChange={handleInputChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors['title.ko']
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500'
-                  }`}
-                />
-                {errors['title.ko'] && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors['title.ko']}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="title.en" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  제목 (영문) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="title.en"
-                  name="title.en"
-                  value={formData.title.en}
-                  onChange={handleInputChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors['title.en']
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500'
-                  }`}
-                />
-                {errors['title.en'] && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors['title.en']}</p>
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="excerpt.ko" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    요약 (한글) <span className="text-red-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleExcerptTranslate}
-                    disabled={isExcerptTranslating || !formData.excerpt.ko.trim()}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center disabled:opacity-50"
-                  >
-                    {isExcerptTranslating ? '번역 중...' : '영어로 번역'}
-                  </button>
-                </div>
-                <textarea
-                  id="excerpt.ko"
-                  name="excerpt.ko"
-                  rows={3}
-                  value={formData.excerpt.ko}
-                  onChange={handleInputChange}
-                  placeholder="뉴스 썸네일에 표시될 요약을 입력하세요."
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors['excerpt.ko']
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500'
-                  }`}
-                />
-                {errors['excerpt.ko'] && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors['excerpt.ko']}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="excerpt.en" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  요약 (영문) <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="excerpt.en"
-                  name="excerpt.en"
-                  rows={3}
-                  value={formData.excerpt.en}
-                  onChange={handleInputChange}
-                  placeholder="Enter a summary for the news thumbnail."
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors['excerpt.en']
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500'
-                  }`}
-                />
-                {errors['excerpt.en'] && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors['excerpt.en']}</p>
-                )}
-              </div>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="featured"
+                checked={formData.featured}
+                onCheckedChange={(checked) => 
+                  setFormData(prev => ({ ...prev, featured: checked }))
+                }
+              />
+              <Label htmlFor="featured">주요 소식으로 지정</Label>
             </div>
-
-            {/* 메타데이터 (오른쪽 열) */}
-            <div className="space-y-6">
-              <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  카테고리 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="category"
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.category
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500'
-                  }`}
-                >
-                  <option value="company">회사 소식</option>
-                  <option value="product">제품 소식</option>
-                  <option value="award">수상 소식</option>
-                  <option value="partnership">파트너십</option>
-                </select>
-                {errors.category && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.category}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="author" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  작성자 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="author"
-                  name="author"
-                  value={formData.author}
-                  onChange={handleInputChange}
-                  placeholder="작성자 이름 또는 팀명"
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.author
-                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500'
-                  }`}
-                />
-                {errors.author && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.author}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  날짜 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  id="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md shadow-sm sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="originalLink" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  원본 링크
-                </label>
-                <input
-                  type="url"
-                  id="originalLink"
-                  name="originalLink"
-                  value={formData.originalLink}
-                  onChange={handleInputChange}
-                  placeholder="https://example.com/original-news"
-                  className="mt-1 block w-full rounded-md shadow-sm sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  외부 소스에서 가져온 뉴스인 경우 원본 URL을 입력하세요.
-                </p>
-              </div>
-
-              <div>
-                <FileUpload
-                  onUploadComplete={handleImageUploadComplete}
-                  label="대표 이미지 업로드"
-                  description="썸네일 및 헤더 이미지로 사용될 이미지를 업로드하세요."
-                  accept="image/*"
-                  maxSizeMB={5}
-                  variant="image"
-                />
-                {errors.imageSrc && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.imageSrc}</p>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-8 pt-4">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="featured"
-                    name="featured"
-                    checked={formData.featured}
-                    onChange={handleCheckboxChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700"
-                  />
-                  <label htmlFor="featured" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                    주요 소식으로 지정
-                  </label>
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="showOnHomepage"
-                    name="showOnHomepage"
-                    checked={formData.showOnHomepage}
-                    onChange={handleCheckboxChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700"
-                  />
-                  <label htmlFor="showOnHomepage" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                    홈페이지에 표시
-                  </label>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="showOnHomepage"
+                checked={formData.showOnHomepage}
+                onCheckedChange={(checked) => 
+                  setFormData(prev => ({ ...prev, showOnHomepage: checked }))
+                }
+              />
+              <Label htmlFor="showOnHomepage">홈페이지에 표시</Label>
             </div>
+          </div>
+          <Button type="submit">저장</Button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <Label htmlFor="thumbnailUrl">썸네일 URL</Label>
+            <Input
+              id="thumbnailUrl"
+              value={formData.imageSrc}
+              onChange={(e) => setFormData({ ...formData, imageSrc: e.target.value })}
+              placeholder="https://example.com/image.jpg"
+            />
+          </div>
+          <div>
+            <Label htmlFor="originalLink">원본 링크</Label>
+            <Input
+              id="originalLink"
+              value={formData.originalLink}
+              onChange={(e) => setFormData({ ...formData, originalLink: e.target.value })}
+              placeholder="https://example.com/news"
+            />
           </div>
         </div>
 
-        {/* 에디터 영역 */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md space-y-6">
-          <BlogEditor
-            koValue={formData.content.ko}
-            enValue={formData.content.en}
-            onKoChange={(content) => handleContentChange(content, 'ko')}
-            onEnChange={(content) => handleContentChange(content, 'en')}
-            label="게시글 내용"
-            placeholder="내용을 입력하세요..."
-            isInvalid={Boolean(errors['content.ko']) || Boolean(errors['content.en'])}
-            errorMessage={errors['content.ko'] || errors['content.en']}
-          />
-        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="ko">한국어</TabsTrigger>
+            <TabsTrigger value="en">English</TabsTrigger>
+          </TabsList>
 
-        {/* 저장 버튼 */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                저장 중...
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5 mr-2" />
-                저장하기
-              </>
-            )}
-          </button>
-        </div>
+          <TabsContent value="ko" className="space-y-4">
+            <div>
+              <Label htmlFor="title.ko">제목 (한글)</Label>
+              <Input
+                id="title.ko"
+                name="title.ko"
+                value={formData.title.ko}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="author">작성자</Label>
+              <Input
+                id="author"
+                name="author"
+                value={formData.author}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="date">날짜</Label>
+              <Input
+                type="date"
+                id="date"
+                name="date"
+                value={formData.date}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label>내용 (한글)</Label>
+              <BlogEditor
+                content={formData.content.ko}
+                onChange={(content) => handleContentChange(content, 'ko')}
+                label="게시글 내용"
+                placeholder="내용을 입력하세요..."
+                isInvalid={Boolean(errors['content.ko'])}
+                errorMessage={errors['content.ko']}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="en" className="space-y-4">
+            <div>
+              <Label htmlFor="title.en">제목 (영문)</Label>
+              <Input
+                id="title.en"
+                name="title.en"
+                value={formData.title.en}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="excerpt.en">요약 (영문)</Label>
+              <textarea
+                id="excerpt.en"
+                name="excerpt.en"
+                rows={3}
+                value={formData.excerpt.en}
+                onChange={handleInputChange}
+                placeholder="Enter a summary for the news thumbnail."
+                className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+                  errors['excerpt.en']
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500'
+                }`}
+              />
+              {errors['excerpt.en'] && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors['excerpt.en']}</p>
+              )}
+            </div>
+            <div>
+              <Label>내용 (영문)</Label>
+              <BlogEditor
+                content={formData.content.en}
+                onChange={(content) => handleContentChange(content, 'en')}
+                label="게시글 내용"
+                placeholder="내용을 입력하세요..."
+                isInvalid={Boolean(errors['content.en'])}
+                errorMessage={errors['content.en']}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
       </form>
     </div>
   );

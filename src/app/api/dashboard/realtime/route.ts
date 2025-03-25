@@ -30,8 +30,21 @@ export async function GET(req: NextRequest) {
           // 데이터베이스 연결
           await connectToDatabase();
 
-          // 대시보드 데이터 수집
-          const dashboardData = await collectDashboardData();
+          // 대시보드 데이터 수집 - 10초 타임아웃 추가
+          const dashboardData = await Promise.race([
+            collectDashboardData(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('데이터 수집 타임아웃')), 10000)
+            )
+          ]).catch(error => {
+            console.error('대시보드 데이터 수집 실패:', error);
+            return {
+              summary: { error: '데이터 로딩 중 타임아웃 발생' },
+              recentActivity: {},
+              analytics: {},
+              serverTime: new Date().toISOString()
+            };
+          });
 
           // 데이터 전송
           controller.enqueue(encoder.encode(`event: dashboard_update\ndata: ${JSON.stringify(dashboardData)}\n\n`));
@@ -39,7 +52,7 @@ export async function GET(req: NextRequest) {
           console.error('대시보드 데이터 수집 오류:', error);
           controller.enqueue(encoder.encode(`event: error\ndata: {"message": "데이터 수집 중 오류가 발생했습니다."}\n\n`));
 
-          // 2초 후 재시도
+          // 3초 후 재시도
           setTimeout(async () => {
             try {
               // 재연결 시도
@@ -48,17 +61,17 @@ export async function GET(req: NextRequest) {
             } catch (retryError) {
               console.error('대시보드 재연결 실패:', retryError);
             }
-          }, 2000);
+          }, 3000);
         }
       };
 
       // 초기 데이터 전송
       await sendData();
 
-      // 5초마다 업데이트 전송
+      // 10초마다 업데이트 전송 (기존 5초에서 10초로 변경)
       const interval = setInterval(async () => {
         await sendData();
-      }, 5000);
+      }, 10000);
 
       // 클라이언트 연결 종료 시 인터벌 정리
       // ReadableStream은 자동으로 cancel 콜백을 처리함
@@ -71,7 +84,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse(customReadable, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive'
     }
   });
@@ -84,7 +97,15 @@ async function collectDashboardData() {
   // 기본 데이터 및 요약
   const startTime = Date.now();
 
-  // 병렬로 데이터 쿼리 실행하여 성능 최적화
+  // 쿼리 타임아웃 유틸리티 함수
+  const withTimeout = (promise, ms, fallbackValue) => {
+    return Promise.race([
+      promise,
+      new Promise(resolve => setTimeout(() => resolve(fallbackValue), ms))
+    ]);
+  };
+
+  // 병렬로 데이터 쿼리 실행하여 성능 최적화 (각 쿼리에 5초 타임아웃 적용)
   const [
     totalUsers,
     totalNews,
@@ -104,10 +125,10 @@ async function collectDashboardData() {
     viewerUsers,
     recentLogins
   ] = await Promise.all([
-    // 카운트 쿼리
-    User.countDocuments().exec(),
-    NewsPost.countDocuments().exec(),
-    ESGPost.countDocuments().exec(),
+    // 카운트 쿼리 - 2초 타임아웃
+    withTimeout(User.countDocuments().exec(), 2000, 0),
+    withTimeout(NewsPost.countDocuments().exec(), 2000, 0),
+    withTimeout(ESGPost.countDocuments().exec(), 2000, 0),
 
     // 이번 달 시작일 계산
     (() => {
@@ -117,31 +138,31 @@ async function collectDashboardData() {
       return startOfMonth;
     })(),
 
-    // 이번 달 게시물 카운트
-    NewsPost.countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }).exec(),
-    ESGPost.countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }).exec(),
+    // 이번 달 게시물 카운트 - 2초 타임아웃
+    withTimeout(NewsPost.countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }).exec(), 2000, 0),
+    withTimeout(ESGPost.countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }).exec(), 2000, 0),
 
-    // 최근 활동 정보
-    NewsPost.find().sort({ createdAt: -1 }).limit(5).select('title slug createdAt').lean().exec(),
-    ESGPost.find().sort({ createdAt: -1 }).limit(5).select('title slug category createdAt').lean().exec(),
+    // 최근 활동 정보 - 3초 타임아웃 
+    withTimeout(NewsPost.find().sort({ createdAt: -1 }).limit(5).select('title slug createdAt').lean().exec(), 3000, []),
+    withTimeout(ESGPost.find().sort({ createdAt: -1 }).limit(5).select('title slug category createdAt').lean().exec(), 3000, []),
 
-    // 가장 많이 본 콘텐츠
-    NewsPost.find().sort({ viewCount: -1 }).limit(5).select('title slug viewCount').lean().exec(),
-    ESGPost.find().sort({ viewCount: -1 }).limit(5).select('title slug category viewCount').lean().exec(),
+    // 가장 많이 본 콘텐츠 - 3초 타임아웃
+    withTimeout(NewsPost.find().sort({ viewCount: -1 }).limit(5).select('title slug viewCount').lean().exec(), 3000, []),
+    withTimeout(ESGPost.find().sort({ viewCount: -1 }).limit(5).select('title slug category viewCount').lean().exec(), 3000, []),
 
-    // ESG 카테고리별 게시물 수
-    ESGPost.countDocuments({ category: 'environment' }).exec(),
-    ESGPost.countDocuments({ category: 'social' }).exec(),
-    ESGPost.countDocuments({ category: 'governance' }).exec(),
+    // ESG 카테고리별 게시물 수 - 2초 타임아웃
+    withTimeout(ESGPost.countDocuments({ category: 'environment' }).exec(), 2000, 0),
+    withTimeout(ESGPost.countDocuments({ category: 'social' }).exec(), 2000, 0),
+    withTimeout(ESGPost.countDocuments({ category: 'governance' }).exec(), 2000, 0),
 
-    // 사용자 역할별 수
-    User.countDocuments({ role: 'admin' }).exec(),
-    User.countDocuments({ role: 'editor' }).exec(),
-    User.countDocuments({ role: 'viewer' }).exec(),
+    // 사용자 역할별 수 - 2초 타임아웃
+    withTimeout(User.countDocuments({ role: 'admin' }).exec(), 2000, 0),
+    withTimeout(User.countDocuments({ role: 'editor' }).exec(), 2000, 0),
+    withTimeout(User.countDocuments({ role: 'viewer' }).exec(), 2000, 0),
 
-    // 최근 로그인 사용자
-    User.find().where('lastLogin').ne(null).sort({ lastLogin: -1 }).limit(5)
-      .select('name username role lastLogin').lean().exec()
+    // 최근 로그인 사용자 - 3초 타임아웃
+    withTimeout(User.find().where('lastLogin').ne(null).sort({ lastLogin: -1 }).limit(5)
+      .select('name username role lastLogin').lean().exec(), 3000, [])
   ]);
 
   // 계산 시간 측정

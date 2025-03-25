@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="900" height="600" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="600" fill="#fff"/>
+  <g transform="translate(450,300)">
+    <circle r="120" fill="#cd2e3a"/>
+    <path d="M0,-120 A120,120 0 0 1 0,120 A120,120 0 0 1 0,-120" fill="#0047a0"/>
+    <path d="M0,-120 A120,120 0 0 0 0,120 A120,120 0 0 0 0,-120" fill="#cd2e3a"/>
+  </g>
+  <g transform="translate(450,300) rotate(56.31)">
+    <g id="bar">
+      <rect x="-180" y="-30" width="60" height="8" fill="#000"/>
+      <rect x="-180" y="-15" width="60" height="8" fill="#000"/>
+      <rect x="-180" y="0" width="60" height="8" fill="#000"/>
+    </g>
+    <use href="#bar" transform="rotate(180)"/>
+    <g transform="rotate(-45)">
+      <use href="#bar"/>
+      <use href="#bar" transform="rotate(180)"/>
+    </g>
+  </g>
+</svg> 
