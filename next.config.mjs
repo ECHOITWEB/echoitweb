@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   // 이미지 최적화 활성화
   images: {
+    sizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     domains: [
       "source.unsplash.com",
       "images.unsplash.com",
