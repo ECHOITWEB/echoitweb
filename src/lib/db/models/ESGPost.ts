@@ -1,21 +1,11 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 import { IUser } from './User';
+import { ESGCategory, AuthorDepartment } from '@/types/esg';
 
 // 다국어 콘텐츠를 위한 인터페이스
 interface IMultiLingual {
   ko: string;
   en?: string; // 영문은 선택사항 (자동 번역 사용)
-}
-
-// ESG 카테고리 enum
-export enum ESGCategory {
-  ENVIRONMENT = 'environment', // 환경
-  SOCIAL = 'social', // 사회
-  GOVERNANCE = 'governance', // 지배구조
-  CSR = 'csr', // 사회공헌사업
-  SUSTAINABILITY = 'sustainability', // 지속가능경영
-  ESG_MANAGEMENT = 'esg_management', // ESG경영
-  OTHER = 'other' // 기타
 }
 
 // ESG 게시물 문서 인터페이스
@@ -24,14 +14,20 @@ export interface IESGPost extends Document {
   summary: IMultiLingual;
   content: IMultiLingual;
   category: ESGCategory;
-  author: Types.ObjectId | IUser;
+  author: {
+    department: AuthorDepartment;
+    name: string;
+  };
   publishDate: Date;
   originalUrl?: string; // 선택사항: 원본 링크
   isMainFeatured: boolean; // 메인 노출 여부
   scheduledPublishDate?: Date; // 선택사항: 예약 송출 시간
-  thumbnailUrl?: string; // 선택사항: 대표 이미지 URL
+  imageSource?: string; // 대표 이미지 URL (News와 일관성)
+  thumbnailUrl?: string; // 선택사항: 대표 이미지 URL (기존 호환성 유지)
   viewCount: number;
   isPublished: boolean;
+  slug: string; // 슬러그 필드 추가 (News와 일관성)
+  tags: string[]; // 태그 필드 추가
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,9 +77,12 @@ const esgPostSchema = new Schema<IESGPost>(
       required: true
     },
     author: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
+      department: {
+        type: String,
+        enum: Object.values(AuthorDepartment),
+        required: true
+      },
+      name: { type: String, required: true }
     },
     publishDate: {
       type: Date,
@@ -108,6 +107,10 @@ const esgPostSchema = new Schema<IESGPost>(
       type: Date,
       required: false
     },
+    imageSource: {
+      type: String,
+      required: false
+    },
     thumbnailUrl: {
       type: String,
       required: false
@@ -119,6 +122,15 @@ const esgPostSchema = new Schema<IESGPost>(
     isPublished: {
       type: Boolean,
       default: true
+    },
+    slug: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    tags: {
+      type: [String],
+      default: []
     }
   },
   {
@@ -129,6 +141,8 @@ const esgPostSchema = new Schema<IESGPost>(
 // 게시물 제목으로 인덱스 생성
 esgPostSchema.index({ 'title.ko': 1 });
 esgPostSchema.index({ category: 1, publishDate: -1 });
+esgPostSchema.index({ slug: 1 }, { unique: true });
+esgPostSchema.index({ tags: 1 }); // 태그 검색용 인덱스 추가
 
 export const ESGPost = mongoose.models.ESGPost || mongoose.model<IESGPost>('ESGPost', esgPostSchema);
 

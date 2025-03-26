@@ -254,89 +254,88 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col ${isDarkMode ? 'dark bg-gray-900' : 'bg-gray-100'} py-12 px-4 sm:px-6 lg:px-8`}>
+    <div className={`min-h-screen flex flex-col items-center justify-center ${isDarkMode ? 'dark bg-gray-900' : 'bg-gray-100'}`}>
       <div className="absolute top-4 right-4">
         <button
           onClick={toggleDarkMode}
-          className="p-2 rounded-full bg-white dark:bg-gray-800 shadow hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          aria-label={isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'}
         >
-          {isDarkMode ? (
-            <Sun className="h-5 w-5 text-yellow-500" />
-          ) : (
-            <Moon className="h-5 w-5 text-gray-600" />
-          )}
+          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
       </div>
 
-      <div className="w-full max-w-md mx-auto">
-        <div className="bg-white dark:bg-gray-800 py-8 px-10 shadow-lg rounded-lg">
-          <div className="mb-8 flex justify-center">
-            <div className="relative h-12 w-48">
-              <Image
-                src="https://ext.same-assets.com/1397033195/831049508.png"
-                alt="Echo IT Logo"
-                fill
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="p-8">
+          <div className="text-center mb-6">
+            <Image
+              src="/images/logo.svg"
+              alt="Echo IT 로고"
+              width={180}
+              height={50}
+              className="mx-auto mb-2"
+            />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">관리자 로그인</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              계정 정보로 로그인하세요
+            </p>
           </div>
 
-          <h2 className="mb-6 text-center text-2xl font-bold text-gray-800 dark:text-white">
-            관리자 로그인
-          </h2>
-
           {error && (
-            <div className="mb-4 rounded-md bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-600 dark:text-red-300 flex items-center animate-fadeIn">
-              <ShieldAlert className="w-5 h-5 mr-2 flex-shrink-0" />
-              <p>{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-3 rounded-lg mb-4 flex items-start">
+              <ShieldAlert className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
                 사용자 이름
               </label>
               <input
                 id="username"
-                name="username"
                 type="text"
-                autoComplete="username"
-                required
-                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                disabled={isLocked || isLoggingIn}
+                autoComplete="username"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="사용자 이름 입력"
+                disabled={isLoggingIn || isLocked}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
                 비밀번호
               </label>
-              <div className="relative mt-1">
+              <div className="relative">
                 <input
                   id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  className="block w-full rounded-md border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none pr-10"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLocked || isLoggingIn}
+                  autoComplete="current-password"
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                  placeholder="비밀번호 입력"
+                  disabled={isLoggingIn || isLocked}
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   onClick={togglePasswordVisibility}
-                  disabled={isLocked || isLoggingIn}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                  tabIndex={-1}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
+                    <EyeOff className="w-5 h-5" />
                   ) : (
-                    <Eye className="h-5 w-5" />
+                    <Eye className="w-5 h-5" />
                   )}
                 </button>
               </div>
@@ -345,53 +344,54 @@ export default function AdminLoginPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <input
-                  id="remember-me"
-                  name="remember-me"
+                  id="rememberMe"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:border-gray-600 dark:bg-gray-700"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  disabled={isLocked || isLoggingIn}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                 />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                  사용자 이름 저장
+                <label
+                  htmlFor="rememberMe"
+                  className="ml-2 block text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                >
+                  로그인 정보 저장
                 </label>
               </div>
             </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={isLocked || isLoggingIn}
-                className={`flex w-full justify-center rounded-md border border-transparent bg-blue-600 dark:bg-blue-500 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none transition-colors ${
-                  isLocked || isLoggingIn ? 'opacity-70 cursor-not-allowed' : ''
-                }`}
-              >
-                {isLoggingIn ? (
-                  <>
-                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-opacity-20 border-t-white rounded-full"></div>
-                    로그인 중...
-                  </>
-                ) : isLocked ? (
-                  <>
-                    <Lock className="mr-2 h-4 w-4" />
-                    {formatRemainingTime(lockRemainingTime)} 후 다시 시도
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="mr-2 h-4 w-4" />
-                    로그인
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-4">
-              <p className="text-center">
-                기본 관리자 계정: admin / echoit1111@
-              </p>
-            </div>
+            <button
+              type="submit"
+              disabled={isLoggingIn || isLocked}
+              className={`w-full flex justify-center items-center py-2.5 px-4 rounded-lg text-white transition-colors
+              ${isLoggingIn || isLocked
+                ? 'bg-blue-400 dark:bg-blue-600 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+              }`}
+            >
+              {isLoggingIn ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  로그인 중...
+                </>
+              ) : isLocked ? (
+                <>
+                  <Lock className="w-5 h-5 mr-2" />
+                  {formatRemainingTime(lockRemainingTime)} 후 시도 가능
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-5 h-5 mr-2" />
+                  로그인
+                </>
+              )}
+            </button>
           </form>
+        </div>
+        
+        <div className="bg-gray-50 dark:bg-gray-700/50 px-8 py-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+            © 2023 Echo IT. All rights reserved.
+          </p>
         </div>
       </div>
     </div>

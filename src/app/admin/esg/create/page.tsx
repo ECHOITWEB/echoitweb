@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TinyEditor } from '@/components/editor/tiny-editor';
 import FileUpload from '@/components/ui/file-upload';
@@ -8,9 +8,29 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { AuthorSelect } from '@/components/forms/author-select';
-import { AuthorDepartment } from '@/types/news';
+import { ESGCategory, AuthorDepartment } from '@/types/esg';
 import { AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import dynamic from 'next/dynamic';
+
+// Tagify 컴포넌트 동적 임포트
+const TagifyComponent = dynamic(() => 
+  import('@yaireo/tagify/dist/react.tagify').then((mod) => mod.default), 
+  { ssr: false }
+);
+
+// CSS 클라이언트 사이드에서만 로드
+const TagifyCss = () => {
+  useEffect(() => {
+    import('@yaireo/tagify/dist/tagify.css');
+  }, []);
+  return null;
+};
+
+interface Author {
+  name: string;
+  department: AuthorDepartment;
+}
 
 interface IFormData {
   title: string;
@@ -20,6 +40,8 @@ interface IFormData {
   author: string;
   publishDate: Date;
   imageSource: string;
+  tags: string[];
+  originalUrl: string;
 }
 
 interface FormError {
@@ -32,15 +54,18 @@ export default function CreateESGPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormError[]>([]);
+  const [selectedAuthor, setSelectedAuthor] = useState('current_user');
 
   const [formData, setFormData] = useState<IFormData>({
     title: '',
     summary: '',
     content: '',
-    category: 'ESG',
-    author: '',
+    category: 'environment',
+    author: 'current_user',
     publishDate: new Date(),
-    imageSource: ''
+    imageSource: '',
+    tags: [],
+    originalUrl: ''
   });
 
   const validateForm = () => {
@@ -52,11 +77,12 @@ export default function CreateESGPage() {
     if (!formData.content) {
       newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
     }
-    if (!formData.author) {
-      newErrors.push({ field: 'author', message: '작성자를 입력해주세요.' });
-    }
     if (!formData.imageSource) {
       newErrors.push({ field: 'image', message: '대표 이미지를 업로드해주세요.' });
+    }
+    
+    if (formData.originalUrl && !/^https?:\/\/.+/.test(formData.originalUrl)) {
+      newErrors.push({ field: 'originalUrl', message: '올바른 URL 형식이 아닙니다. (예: https://example.com)' });
     }
 
     setErrors(newErrors);
@@ -78,17 +104,67 @@ export default function CreateESGPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/posts/news', {
+      // 백엔드에 맞게 데이터 형식 변환
+      const apiData = {
+        ...formData,
+        title: { ko: formData.title },
+        summary: { ko: formData.summary },
+        content: { ko: formData.content }
+      };
+      
+      console.log('제출하는 데이터:', apiData);
+      
+      // 인증 토큰 가져오기
+      const session = localStorage.getItem('echoit_auth_token');
+      let accessToken = '';
+      let decodedToken = null;
+      
+      if (session) {
+        try {
+          const sessionData = JSON.parse(session);
+          accessToken = sessionData.accessToken;
+          
+          // 토큰 디코딩 시도 (base64 디코딩)
+          if (accessToken) {
+            const tokenParts = accessToken.split('.');
+            if (tokenParts.length === 3) {
+              const payload = tokenParts[1];
+              const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+              const decodedPayload = atob(base64);
+              decodedToken = JSON.parse(decodedPayload);
+              console.log('디코딩된 토큰 페이로드:', decodedToken);
+              console.log('사용자 역할:', decodedToken.role, decodedToken.roles);
+            }
+          }
+          
+          console.log('인증 토큰 확인:', accessToken ? '존재함' : '없음');
+        } catch (e) {
+          console.error('세션 파싱 오류:', e);
+        }
+      }
+      
+      // API 요청 보내기
+      console.log('API 요청 헤더:', {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      });
+      
+      const response = await fetch('/api/posts/esg', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(apiData),
       });
 
+      // 자세한 응답 로깅
+      const responseData = await response.json();
+      console.log('API 응답 상태:', response.status, response.statusText);
+      console.log('API 응답 내용:', responseData);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'ESG 포스트 생성에 실패했습니다.');
+        throw new Error(responseData.error || responseData.message || 'ESG 포스트 생성에 실패했습니다.');
       }
 
       toast({
@@ -109,14 +185,50 @@ export default function CreateESGPage() {
     }
   };
 
-  const categories = [
-    { value: 'environment', label: '환경' },
-    { value: 'social', label: '사회' },
-    { value: 'governance', label: '지배구조' }
-  ];
+  const handleAuthorChange = (authorId: string) => {
+    setSelectedAuthor(authorId);
+    setFormData(prev => ({
+      ...prev,
+      author: authorId
+    }));
+  };
+
+  const categories = Object.entries(ESGCategory).map(([key, value]) => ({
+    value,
+    label: (() => {
+      switch (value) {
+        case 'environment': return '환경';
+        case 'social': return '사회';
+        case 'governance': return '지배구조';
+        case 'esg_management': return 'ESG 경영';
+        case 'sustainability': return '지속가능성';
+        case 'csr': return '사회공헌';
+        case 'other': return '기타';
+        default: return key;
+      }
+    })()
+  }));
+
+  const tagifySettings = {
+    maxTags: 10,
+    placeholder: "예: ESG, 지속가능경영, 탄소중립",
+    delimiters: ",",
+    dropdown: {
+      enabled: 0
+    }
+  };
+
+  const handleTagChange = (e: any) => {
+    const tags = e.detail.tagify.value.map((tag: any) => tag.value);
+    setFormData(prev => ({
+      ...prev,
+      tags
+    }));
+  };
 
   return (
     <div className="container mx-auto p-6">
+      <TagifyCss />
       <h1 className="text-2xl font-bold mb-6">ESG 포스트 작성</h1>
       
       {errors.length > 0 && (
@@ -178,6 +290,18 @@ export default function CreateESGPage() {
         </div>
 
         <div className="space-y-2">
+          <label className="text-sm font-medium">태그 (최대 10개, 쉼표로 구분)</label>
+          {typeof window !== 'undefined' && (
+            <TagifyComponent
+              value={formData.tags}
+              settings={tagifySettings}
+              onChange={handleTagChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            />
+          )}
+        </div>
+
+        <div className="space-y-2">
           <label className="text-sm font-medium">대표 이미지</label>
           <FileUpload
             onUploadComplete={(url) => setFormData({ ...formData, imageSource: url })}
@@ -192,16 +316,16 @@ export default function CreateESGPage() {
 
         <div className="space-y-2">
           <label className="text-sm font-medium">작성자</label>
-          <AuthorSelect
-            value={formData.author}
-            onChange={(authorName) => setFormData({ ...formData, author: authorName })}
+          <AuthorSelect 
+            value={selectedAuthor} 
+            onChange={handleAuthorChange} 
           />
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium">내용</label>
           <TinyEditor
-            value={formData.content}
+            initialValue={formData.content}
             onChange={(content) => setFormData({ ...formData, content })}
           />
           {errors.some(e => e.field === 'content') && (
@@ -209,17 +333,33 @@ export default function CreateESGPage() {
           )}
         </div>
 
-        <div className="flex justify-end space-x-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">원본 URL</label>
+          <Input
+            value={formData.originalUrl}
+            onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
+            placeholder="https://example.com"
+            className={errors.some(e => e.field === 'originalUrl') ? 'border-red-500' : ''}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            원본 출처가 있는 경우 URL을 입력하세요. (선택사항)
+          </p>
+          {errors.some(e => e.field === 'originalUrl') && (
+            <p className="text-sm text-red-500 mt-1">올바른 URL 형식이 아닙니다. (예: https://example.com)</p>
+          )}
+        </div>
+
+        <div className="flex justify-end space-x-4 mt-8">
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.back()}
+            onClick={() => router.push('/admin/esg')}
             disabled={isSubmitting}
           >
             취소
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? '저장 중...' : '게시하기'}
+            {isSubmitting ? '저장 중...' : '저장하기'}
           </Button>
         </div>
       </form>

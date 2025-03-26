@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: siteSettings.faviconUrl || '/favicon.ico',
+        url: '/images/favicon.ico',
         type: 'image/x-icon',
       },
     ],
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Echo IT - All Technologies for Smart DX',
     description: 'SAP, AI/RPA, Low-Code, CRM & ITO',
-    images: [siteSettings.ogImageUrl],
+    images: ['/images/og_default.png'],
   },
 };
 

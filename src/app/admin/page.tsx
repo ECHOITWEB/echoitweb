@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowUp, ArrowDown, Eye, Calendar, FileText, Newspaper,
@@ -13,18 +13,15 @@ import { ko } from 'date-fns/locale';
 // 대시보드 페이지 컴포넌트
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [accessToken, setAccessToken] = useState<string>('');
-
-  // 로컬 스토리지에서 토큰 가져오기
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      setAccessToken(token);
-    }
-  }, []);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
 
   // 실시간 대시보드 데이터 구독
-  const { data, loading, error, reconnect } = useRealtimeDashboard(accessToken);
+  const { data, error, isLoading } = useRealtimeDashboard();
+
+  // 데이터 새로고침 함수
+  const reconnect = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+  }, []);
 
   // 날짜 포맷팅 함수
   const formatDate = (dateString: string) => {
@@ -44,7 +41,7 @@ export default function AdminDashboardPage() {
   };
 
   // 로딩 중 UI
-  if (loading && !data) {
+  if (isLoading && !data) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-6">대시보드</h1>
@@ -75,7 +72,7 @@ export default function AdminDashboardPage() {
             <AlertTriangle className="w-6 h-6 text-red-500 mr-3 flex-shrink-0" />
             <div>
               <h3 className="text-lg font-semibold text-red-700 dark:text-red-400">데이터 로딩 오류</h3>
-              <p className="text-red-600 dark:text-red-300 mt-1">{error}</p>
+              <p className="text-red-600 dark:text-red-300 mt-1">{error.message}</p>
               <button
                 onClick={reconnect}
                 className="mt-3 px-4 py-2 bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 rounded-md inline-flex items-center hover:bg-red-200 dark:hover:bg-red-700 transition-colors"
@@ -124,14 +121,14 @@ export default function AdminDashboardPage() {
     },
     {
       title: '뉴스 게시물 수',
-      value: data?.newsStats?.reduce((sum, item) => sum + item.count, 0).toLocaleString() || '0',
+      value: (data?.totalStats?.newsCount || 0).toLocaleString(),
       icon: <Newspaper className="w-6 h-6 text-purple-500" />,
       bg: 'bg-purple-50 dark:bg-purple-900/20',
       onClick: () => router.push('/admin/news'),
     },
     {
       title: 'ESG 게시물 수',
-      value: data?.esgStats?.reduce((sum, item) => sum + item.count, 0).toLocaleString() || '0',
+      value: (data?.totalStats?.esgCount || 0).toLocaleString(),
       icon: <Leaf className="w-6 h-6 text-teal-500" />,
       bg: 'bg-teal-50 dark:bg-teal-900/20',
       onClick: () => router.push('/admin/esg'),
@@ -193,7 +190,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 border border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center justify-between">
             <span>최근 게시물</span>
-            {loading && <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />}
+            {isLoading && <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />}
           </h2>
           <div className="space-y-4">
             {data?.recentNews?.slice(0, 3).map((news, index) => (
@@ -256,7 +253,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 border border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center justify-between">
             <span>콘텐츠 통계</span>
-            {loading && <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />}
+            {isLoading && <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />}
           </h2>
 
           <div className="space-y-6">
@@ -268,7 +265,7 @@ export default function AdminDashboardPage() {
               <div className="space-y-2">
                 {data?.newsStats?.map((stat, index) => (
                   <div key={`news-stat-${index}`} className="flex items-center">
-                    <span className="text-xs text-gray-600 dark:text-gray-400 w-24 truncate">{stat._id}</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 w-24 truncate">{stat._id || '미분류'}</span>
                     <div className="flex-grow mx-2 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                       <div
                         className="bg-blue-500 h-2 rounded-full"
@@ -295,7 +292,7 @@ export default function AdminDashboardPage() {
               <div className="space-y-2">
                 {data?.esgStats?.map((stat, index) => (
                   <div key={`esg-stat-${index}`} className="flex items-center">
-                    <span className="text-xs text-gray-600 dark:text-gray-400 w-24 truncate">{stat._id}</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 w-24 truncate">{stat._id || '미분류'}</span>
                     <div className="flex-grow mx-2 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                       <div
                         className="bg-green-500 h-2 rounded-full"

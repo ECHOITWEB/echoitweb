@@ -84,7 +84,7 @@ export function Header({ transparent = false, className }: HeaderProps) {
         <Link href="/" className="flex items-center">
           <Image
             src="/images/logo.svg"
-            alt="에코잇 로고"
+            alt="에코아이티 로고"
             width={120}
             height={32}
             className="h-8 w-auto"
@@ -144,7 +144,7 @@ export function Header({ transparent = false, className }: HeaderProps) {
               <Link href="/" className="flex items-center">
                 <Image
                   src="/images/logo.svg"
-                  alt="에코잇 로고"
+                  alt="에코아이티 로고"
                   width={120}
                   height={32}
                   className="h-8 w-auto"

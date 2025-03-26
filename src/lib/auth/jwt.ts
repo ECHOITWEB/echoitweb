@@ -12,6 +12,7 @@ export interface UserAuthInfo {
   username: string;
   email: string;
   role: string;
+  roles?: string[];
 }
 
 // 토큰 타입 정의
@@ -26,6 +27,7 @@ export interface JWTPayload extends JwtPayload {
   username: string;
   email: string;
   role: string;
+  roles?: string[];
   type: TokenType;
 }
 
@@ -41,6 +43,7 @@ export function generateAccessToken(user: UserAuthInfo): string {
       username: user.username,
       email: user.email,
       role: user.role,
+      roles: user.roles,
       type: TokenType.ACCESS
     },
     JWT_SECRET,
@@ -60,6 +63,7 @@ export function generateRefreshToken(user: UserAuthInfo): string {
       username: user.username,
       email: user.email,
       role: user.role,
+      roles: user.roles,
       type: TokenType.REFRESH
     },
     JWT_SECRET,
@@ -130,10 +134,33 @@ export function verifyRefreshToken(token: string): JWTPayload | null {
  * @returns 인증에 필요한 사용자 정보
  */
 export function extractUserAuthInfo(user: IUser): UserAuthInfo {
+  if (!user || !user._id) {
+    console.error('유효하지 않은 사용자 정보:', user);
+    throw new Error('유효하지 않은 사용자 정보입니다.');
+  }
+  
+  // 역할 처리
+  let role = 'viewer'; // 기본값은 viewer
+  
+  // role 필드가 문자열인 경우 (우선 사용)
+  if (user.role && typeof user.role === 'string') {
+    role = user.role;
+  } 
+  // roles 배열이 있는 경우
+  else if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
+    role = user.roles[0];
+  }
+  
+  // admin 사용자는 항상 admin 역할 부여
+  if (user.username === 'admin') {
+    role = 'admin';
+  }
+  
   return {
     id: user._id.toString(),
     username: user.username,
     email: user.email,
-    role: user.role
+    role: role,
+    roles: Array.isArray(user.roles) ? user.roles : [role]
   };
 }

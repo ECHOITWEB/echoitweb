@@ -11,14 +11,22 @@ import { IUser } from '@/lib/db/models/User';
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('뉴스 포스트 생성 요청 시작');
+    
     // 에디터 권한 체크
     const user = await requireEditor(req);
+    
+    console.log('권한 체크 결과:', user ? '권한 있음' : '권한 없음');
+    
     if (!user) {
+      console.log('권한 거부: 에디터 권한 없음');
       return NextResponse.json(
         { error: '권한이 없습니다.' },
         { status: 403 }
       );
     }
+    
+    console.log('인증된 사용자:', user.username, '역할:', user.role, user.roles);
 
     // DB 연결
     await connectToDatabase();

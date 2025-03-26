@@ -1,4 +1,5 @@
 import { NewsPost } from '@/lib/db/models/NewsPost';
+import { ESGPost } from '@/lib/db/models/ESGPost';
 
 /**
  * 한글 제목을 영문 슬러그로 변환
@@ -18,8 +19,12 @@ export async function createSlug(title: string): Promise<string> {
 
   // 중복 체크 및 처리
   while (true) {
-    const existingPost = await NewsPost.findOne({ slug });
-    if (!existingPost) break;
+    // NewsPost와 ESGPost 모두에서 중복 검사
+    const existingNewsPost = await NewsPost.findOne({ slug });
+    const existingESGPost = await ESGPost.findOne({ slug });
+    
+    // 어느 쪽에도
+    if (!existingNewsPost && !existingESGPost) break;
 
     // 중복되면 숫자를 붙임
     slug = `${romanized}-${counter}`;

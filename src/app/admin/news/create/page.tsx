@@ -28,6 +28,7 @@ interface IFormData {
   publishDate: Date;
   imageSource: string;
   tags: string[];
+  originalUrl: string;
 }
 
 interface FormError {
@@ -47,10 +48,11 @@ export default function CreateNewsPage() {
     summary: '',
     content: '',
     category: 'company',
-    author: '',
+    author: 'current_user',
     publishDate: new Date(),
     imageSource: '',
-    tags: []
+    tags: [],
+    originalUrl: ''
   });
 
   const validateForm = () => {
@@ -62,11 +64,12 @@ export default function CreateNewsPage() {
     if (!formData.content) {
       newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
     }
-    if (!formData.author) {
-      newErrors.push({ field: 'author', message: '작성자를 입력해주세요.' });
-    }
     if (!formData.imageSource) {
       newErrors.push({ field: 'image', message: '대표 이미지를 업로드해주세요.' });
+    }
+    
+    if (formData.originalUrl && !/^https?:\/\/.+/.test(formData.originalUrl)) {
+      newErrors.push({ field: 'originalUrl', message: '올바른 URL 형식이 아닙니다. (예: https://example.com)' });
     }
 
     setErrors(newErrors);
@@ -88,17 +91,43 @@ export default function CreateNewsPage() {
     setIsSubmitting(true);
 
     try {
+      // 백엔드에 맞게 데이터 형식 변환
+      const apiData = {
+        ...formData,
+        title: { ko: formData.title },
+        summary: { ko: formData.summary },
+        content: { ko: formData.content }
+      };
+      
+      console.log('제출하는 데이터:', apiData);
+      
+      // 인증 토큰 가져오기
+      const session = localStorage.getItem('echoit_auth_token');
+      let accessToken = '';
+      
+      if (session) {
+        try {
+          const sessionData = JSON.parse(session);
+          accessToken = sessionData.accessToken;
+          console.log('인증 토큰 확인:', accessToken ? '존재함' : '없음');
+        } catch (e) {
+          console.error('세션 파싱 오류:', e);
+        }
+      }
+      
+      // API 요청 보내기
       const response = await fetch('/api/posts/news', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || '뉴스 포스트 생성에 실패했습니다.');
+        throw new Error(errorData.error || '뉴스 포스트 생성에 실패했습니다.');
       }
 
       toast({
@@ -247,17 +276,35 @@ export default function CreateNewsPage() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">작성자</label>
+          <label className="text-sm font-medium">원본 URL</label>
+          <Input
+            value={formData.originalUrl}
+            onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
+            placeholder="https://example.com"
+            className={errors.some(e => e.field === 'originalUrl') ? 'border-red-500' : ''}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            원본 출처가 있는 경우 URL을 입력하세요. (선택사항)
+          </p>
+          {errors.some(e => e.field === 'originalUrl') && (
+            <p className="text-sm text-red-500 mt-1">올바른 URL 형식이 아닙니다. (예: https://example.com)</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">작성자 <span className="text-gray-500 text-xs">(선택사항)</span></label>
           <AuthorSelect
             value={formData.author}
             onChange={handleAuthorChange}
+            required={false}
           />
+          <p className="text-xs text-gray-500">선택하지 않으면 현재 로그인한 계정의 정보로 자동 등록됩니다.</p>
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium">내용</label>
           <TinyEditor
-            value={formData.content}
+            initialValue={formData.content}
             onChange={(content) => setFormData({ ...formData, content })}
           />
           {errors.some(e => e.field === 'content') && (
@@ -265,17 +312,17 @@ export default function CreateNewsPage() {
           )}
         </div>
 
-        <div className="flex justify-end space-x-4">
+        <div className="flex justify-end space-x-4 mt-8">
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.back()}
+            onClick={() => router.push('/admin/news')}
             disabled={isSubmitting}
           >
             취소
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? '저장 중...' : '게시하기'}
+            {isSubmitting ? '저장 중...' : '저장하기'}
           </Button>
         </div>
       </form>

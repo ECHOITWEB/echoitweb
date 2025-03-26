@@ -2,15 +2,68 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { UserInfo, UserRole } from '@/context/auth-context';
+import { UserRole } from '@/context/auth-context';
 import apiClient from '@/lib/auth/api-client';
 import { Eye, EyeOff, Trash, UserPlus, CheckCircle, XCircle, Pencil, Save, Shield } from 'lucide-react';
 import Image from 'next/image';
+import toast from 'react-hot-toast';
 
-interface ExtendedUserInfo extends UserInfo {
+interface NameObject {
+  first: string;
+  last: string;
+}
+
+// 이름 객체 타입 가드
+function isNameObject(name: any): name is NameObject {
+  return typeof name === 'object' && name !== null && 'first' in name;
+}
+
+// 안전하게 name.first에 접근하는 헬퍼 함수
+function getFirstName(name: NameObject | string): string {
+  return isNameObject(name) ? name.first : name;
+}
+
+// 안전하게 name.last에 접근하는 헬퍼 함수
+function getLastName(name: NameObject | string): string {
+  return isNameObject(name) ? name.last : '';
+}
+
+// 새로운 이름 객체 생성 헬퍼 함수
+function createNameObject(value: string): NameObject {
+  return { first: value, last: '' };
+}
+
+interface ExtendedUserInfo {
+  id: string;
+  username: string;
+  email: string;
+  name: NameObject | string;
+  role: UserRole;
   isActive: boolean;
   createdAt: string;
   lastLogin?: string;
+  password?: string;
+  avatar?: string;
+  updatedAt: string;
+}
+
+// 새 사용자 정의 인터페이스 - name을 항상 NameObject로 처리
+interface NewUserForm {
+  username: string;
+  email: string;
+  name: NameObject;
+  password: string;
+  role: UserRole;
+}
+
+// API 응답 인터페이스 정의
+interface UsersApiResponse {
+  success: boolean;
+  message?: string;
+  users?: ExtendedUserInfo[];
+  data?: {
+    users?: ExtendedUserInfo[];
+  };
 }
 
 const UserRoleNames: Record<UserRole, string> = {
@@ -36,99 +89,162 @@ export default function UserManagementPage() {
   const [success, setSuccess] = useState('');
   const [editingUser, setEditingUser] = useState<ExtendedUserInfo | null>(null);
 
-  // New user form
-  const [newUser, setNewUser] = useState({
+  // 새 사용자 폼
+  const [newUser, setNewUser] = useState<NewUserForm>({
     username: '',
     email: '',
+    name: {
+      first: '',
+      last: ''
+    },
     password: '',
-    name: '',
-    role: 'editor' as UserRole
+    role: 'viewer' as UserRole,
   });
   const [showPassword, setShowPassword] = useState(false);
 
-  // Fetch users from API
+  // 사용자 목록 가져오기
   const fetchUsers = async () => {
-    setLoading(true);
-    setError('');
-
     try {
-      const response = await apiClient.get('/users');
-
-      if (response.success && response.users) {
-        setUsers(response.users);
+      setLoading(true);
+      setError('');
+      
+      console.log('사용자 목록 가져오기 시작');
+      const response = await apiClient.get('/users') as any;
+      
+      // 디버깅을 위한 응답 로깅
+      console.log('API 응답:', JSON.stringify(response, null, 2));
+      
+      if (response.success) {
+        let userData: ExtendedUserInfo[] = [];
+        
+        if (response.users && Array.isArray(response.users)) {
+          console.log(`사용자 ${response.users.length}명 로드 완료`);
+          userData = response.users;
+        } else if (response.data?.users && Array.isArray(response.data.users)) {
+          console.log(`사용자 ${response.data.users.length}명 로드 완료`);
+          userData = response.data.users;
+        } else if (Array.isArray(response.data)) {
+          console.log(`사용자 ${response.data.length}명 로드 완료`);
+          userData = response.data;
+        } else {
+          console.error('예상치 못한 응답 형식:', response);
+          setError('응답 데이터 형식이 예상과 다릅니다.');
+          return;
+        }
+        
+        // 사용자 데이터 설정
+        setUsers(userData);
       } else {
-        setError('사용자 목록을 불러오는데 실패했습니다.');
+        console.error('API 요청 실패:', response.message);
+        setError(response.message || '사용자 목록을 가져오는데 실패했습니다.');
       }
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      setError('사용자 목록을 불러오는 중 오류가 발생했습니다.');
+    } catch (error) {
+      console.error('사용자 목록 가져오기 오류:', error);
+      setError('사용자 목록을 가져오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load users on component mount
+  // 컴포넌트 마운트 시 사용자 목록 로드
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Handle form input changes
+  // 입력 필드 변경 처리
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setNewUser(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'fullName') {
+      setNewUser((prev) => ({
+        ...prev,
+        name: {
+          ...prev.name,
+          first: value,
+          last: '' // 성은 빈 문자열로 설정
+        }
+      }));
+    } else {
+      setNewUser((prev) => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
-  // Toggle password visibility
+  // 비밀번호 가시성 토글
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-  // Handle user creation
-  const handleCreateUser = async (e: React.FormEvent) => {
+  // 사용자 생성 처리
+  const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    // Validation
-    if (!newUser.username || !newUser.email || !newUser.password || !newUser.name) {
-      setError('모든 필드를 입력해주세요.');
+    
+    if (!newUser.username || !newUser.email || !newUser.name.first || !newUser.password) {
+      toast.error('모든 필드를 채워주세요.');
       return;
     }
-
+    
     try {
-      const response = await apiClient.post('/users', newUser);
-
+      setLoading(true);
+      
+      // 성(last)은 빈 문자열로 유지하면서 요청
+      const userData = {
+        ...newUser,
+        name: {
+          first: newUser.name.first,
+          last: newUser.name.last
+        }
+      };
+      
+      const response = await apiClient.post('/users', userData);
+      
       if (response.success) {
-        setSuccess('사용자가 성공적으로 생성되었습니다.');
+        toast.success('사용자가 성공적으로 생성되었습니다.');
+        setShowModal(false);
+        fetchUsers(); // 사용자 목록 새로고침
+        // 사용자 생성 후 폼 초기화
         setNewUser({
           username: '',
           email: '',
+          name: {
+            first: '',
+            last: ''
+          },
           password: '',
-          name: '',
-          role: 'editor' as UserRole
+          role: 'viewer' as UserRole,
         });
-        setShowModal(false);
-        await fetchUsers(); // Refresh user list
       } else {
-        setError(response.message || '사용자 생성에 실패했습니다.');
+        toast.error(response.message || '사용자 생성에 실패했습니다.');
       }
-    } catch (err: any) {
-      console.error('Error creating user:', err);
-      setError(err.message || '사용자 생성 중 오류가 발생했습니다.');
+    } catch (error) {
+      console.error('사용자 생성 오류:', error);
+      toast.error('사용자 생성 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Set up user for editing
+  // 수정을 위한 사용자 설정
   const startEditing = (user: ExtendedUserInfo) => {
-    setEditingUser(user);
+    // 이름이 문자열인 경우 객체로 변환
+    const nameObject = isNameObject(user.name) 
+      ? user.name
+      : createNameObject(user.name as string);
+      
+    setEditingUser({
+      ...user,
+      name: nameObject
+    });
   };
 
-  // Cancel editing
+  // 수정 취소
   const cancelEditing = () => {
     setEditingUser(null);
   };
 
-  // Handle user update
+  // 사용자 업데이트 처리
   const handleUpdateUser = async (user: ExtendedUserInfo) => {
     if (!editingUser) return;
 
@@ -136,17 +252,22 @@ export default function UserManagementPage() {
     setSuccess('');
 
     try {
+      // 이름을 항상 객체 형식으로 전송
+      const nameObject = isNameObject(editingUser.name) 
+        ? editingUser.name 
+        : createNameObject(editingUser.name as string);
+      
       const response = await apiClient.put(`/users/${editingUser.id}`, {
         role: editingUser.role,
         isActive: editingUser.isActive,
-        name: editingUser.name,
+        name: nameObject,
         email: editingUser.email
       });
 
       if (response.success) {
         setSuccess('사용자 정보가 업데이트되었습니다.');
         setEditingUser(null);
-        await fetchUsers(); // Refresh user list
+        await fetchUsers(); // 사용자 목록 새로고침
       } else {
         setError(response.message || '사용자 업데이트에 실패했습니다.');
       }
@@ -156,13 +277,13 @@ export default function UserManagementPage() {
     }
   };
 
-  // Confirm user deletion
+  // 사용자 삭제 확인
   const confirmDelete = (userId: string) => {
     setUserToDelete(userId);
     setShowDeleteModal(true);
   };
 
-  // Handle user deletion
+  // 사용자 삭제 처리
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
 
@@ -176,7 +297,7 @@ export default function UserManagementPage() {
         setSuccess('사용자가 삭제되었습니다.');
         setShowDeleteModal(false);
         setUserToDelete(null);
-        await fetchUsers(); // Refresh user list
+        await fetchUsers(); // 사용자 목록 새로고침
       } else {
         setError(response.message || '사용자 삭제에 실패했습니다.');
       }
@@ -186,7 +307,7 @@ export default function UserManagementPage() {
     }
   };
 
-  // Format date string
+  // 날짜 문자열 형식화
   const formatDate = (dateString?: string) => {
     if (!dateString) return '없음';
     return new Date(dateString).toLocaleString('ko-KR', {
@@ -196,6 +317,22 @@ export default function UserManagementPage() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // 표시할 이름 처리 함수
+  const getDisplayName = (name: NameObject | string): string => {
+    if (!isNameObject(name)) {
+      return name;
+    }
+    return name.first + (name.last ? ` ${name.last}` : '');
+  };
+
+  // 이름의 첫 글자 가져오기
+  const getNameInitial = (name: NameObject | string): string => {
+    if (!isNameObject(name)) {
+      return name.charAt(0).toUpperCase();
+    }
+    return name.first.charAt(0).toUpperCase();
   };
 
   return (
@@ -261,8 +398,18 @@ export default function UserManagementPage() {
                         <div className="flex flex-col space-y-2">
                           <input
                             type="text"
-                            value={editingUser.name}
-                            onChange={(e) => setEditingUser({...editingUser, name: e.target.value})}
+                            value={getFirstName(editingUser.name)}
+                            onChange={(e) => {
+                              // 이름을 항상 객체로 처리
+                              const nameObj = isNameObject(editingUser.name) 
+                                ? { ...editingUser.name, first: e.target.value }
+                                : createNameObject(e.target.value);
+                              
+                              setEditingUser({
+                                ...editingUser, 
+                                name: nameObj
+                              });
+                            }}
                             className="border rounded-md py-1 px-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
                             placeholder="이름"
                           />
@@ -278,12 +425,12 @@ export default function UserManagementPage() {
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center">
                             <span className="text-gray-600 dark:text-gray-300 font-medium text-lg">
-                              {user.name.charAt(0).toUpperCase()}
+                              {getNameInitial(user.name)}
                             </span>
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {user.name} ({user.username})
+                              {getDisplayName(user.name)} ({user.username})
                             </div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">
                               {user.email}
@@ -378,7 +525,7 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      {/* New User Modal */}
+      {/* 사용자 추가 모달 */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full">
@@ -393,14 +540,14 @@ export default function UserManagementPage() {
               <form onSubmit={handleCreateUser}>
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       이름
                     </label>
                     <input
                       type="text"
-                      id="name"
-                      name="name"
-                      value={newUser.name}
+                      id="fullName"
+                      name="fullName"
+                      value={newUser.name.first}
                       onChange={handleInputChange}
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       required
@@ -409,13 +556,13 @@ export default function UserManagementPage() {
 
                   <div>
                     <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      사용자 이름
+                      사용자ID
                     </label>
                     <input
                       type="text"
                       id="username"
                       name="username"
-                      value={newUser.username}
+                      value={newUser.username || ''}
                       onChange={handleInputChange}
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       required
@@ -430,7 +577,7 @@ export default function UserManagementPage() {
                       type="email"
                       id="email"
                       name="email"
-                      value={newUser.email}
+                      value={newUser.email || ''}
                       onChange={handleInputChange}
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       required
@@ -446,7 +593,7 @@ export default function UserManagementPage() {
                         type={showPassword ? "text" : "password"}
                         id="password"
                         name="password"
-                        value={newUser.password}
+                        value={newUser.password || ''}
                         onChange={handleInputChange}
                         className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white pr-10"
                         required
@@ -468,7 +615,7 @@ export default function UserManagementPage() {
                     <select
                       id="role"
                       name="role"
-                      value={newUser.role}
+                      value={newUser.role || 'viewer'}
                       onChange={handleInputChange}
                       className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     >
@@ -505,7 +652,7 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* 삭제 확인 모달 */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">

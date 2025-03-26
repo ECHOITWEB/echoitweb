@@ -18,6 +18,7 @@ export interface IUser extends Document {
     last: string;
   };
   roles: string[];
+  role: UserRole;
   isActive: boolean;
   lastLogin: Date;
   createdAt: Date;
@@ -56,13 +57,19 @@ const userSchema = new Schema<IUser>(
       },
       last: {
         type: String,
-        required: true
+        required: false,
+        default: ''
       }
     },
     roles: [{
       type: String,
-      enum: ['admin', 'editor', 'user']
+      enum: ['admin', 'editor', 'viewer']
     }],
+    role: {
+      type: String,
+      enum: Object.values(UserRole),
+      default: UserRole.VIEWER
+    },
     isActive: {
       type: Boolean,
       default: true

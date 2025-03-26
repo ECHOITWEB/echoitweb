@@ -100,23 +100,60 @@ export async function requireAdmin(
 /**
  * 편집자 이상 권한만 액세스 허용하는 미들웨어
  * @param req 요청 객체
- * @returns 응답 객체 또는 undefined
+ * @returns 사용자 객체 또는 null
  */
 export async function requireEditor(req: NextRequest): Promise<IUser | null> {
   try {
-    const token = await getToken({ req });
+    // 1. 토큰 추출 및 검증
+    const token = extractTokenFromRequest(req as NextRequest);
     if (!token) {
+      console.log('토큰이 존재하지 않음');
       return null;
     }
-
+    
+    const payload = verifyAccessToken(token);
+    if (!payload) {
+      console.log('토큰 검증 실패');
+      return null;
+    }
+    
+    console.log('토큰 페이로드:', JSON.stringify(payload));
+    console.log('사용자 ID:', payload.userId, '역할:', payload.role);
+    
+    // 2. 데이터베이스에서 사용자 조회
     await connectToDatabase();
-    const user = await User.findById(token.sub);
-
-    if (!user || !user.roles.includes('editor')) {
+    const user = await User.findById(payload.userId);
+    
+    if (!user) {
+      console.log('DB에서 사용자를 찾을 수 없음:', payload.userId);
       return null;
     }
-
-    return user;
+    
+    console.log('DB 사용자 정보:', user.username, 'role:', user.role, 'roles:', user.roles);
+    
+    // 3. 관리자 권한 확인 (username이 'admin'이면 항상 허용)
+    if (user.username === 'admin') {
+      console.log('관리자 사용자 확인됨:', user.username);
+      return user;
+    }
+    
+    // 4. role 필드 확인 (admin 또는 editor)
+    if (user.role === 'admin' || user.role === 'editor') {
+      console.log('권한 있음(role):', user.role);
+      return user;
+    }
+    
+    // 5. roles 배열 확인
+    if (user.roles && Array.isArray(user.roles)) {
+      if (user.roles.includes('admin') || user.roles.includes('editor')) {
+        console.log('권한 있음(roles):', user.roles);
+        return user;
+      }
+    }
+    
+    // 권한 없음
+    console.log('권한 없음. 사용자:', user.username, '역할:', user.role, user.roles);
+    return null;
   } catch (error) {
     console.error('권한 체크 중 오류:', error);
     return null;

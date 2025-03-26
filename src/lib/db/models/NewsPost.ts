@@ -34,6 +34,7 @@ export interface INewsPost extends Document {
   };
   publishDate: Date;
   imageSource?: string;
+  originalUrl?: string;
   viewCount: number;
   isPublished: boolean;
   slug: string;
@@ -66,6 +67,15 @@ const newsPostSchema = new Schema<INewsPost>(
     },
     publishDate: { type: Date, required: true },
     imageSource: { type: String },
+    originalUrl: { 
+      type: String,
+      validate: {
+        validator: function(v: string) {
+          return !v || /^https?:\/\/.+/.test(v);
+        },
+        message: '올바른 URL 형식이 아닙니다.'
+      }
+    },
     viewCount: { type: Number, default: 0 },
     isPublished: { type: Boolean, default: false },
     slug: { type: String, required: true, unique: true }
