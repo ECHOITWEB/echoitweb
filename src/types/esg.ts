@@ -14,6 +14,8 @@ export enum AuthorDepartment {
   RND = '기술연구소',
   HR = '인사팀',
   ADMIN = '운영자',
+  EDITOR = '편집자',
+  USER = '일반 사용자',
   CUSTOM = '직접 입력'
 }
 

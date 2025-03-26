@@ -104,12 +104,23 @@ export default function CreateESGPage() {
     setIsSubmitting(true);
 
     try {
+      // 작성자 정보 처리
+      let authorData = selectedAuthor;
+      
+      // 기본값이 'current_user'인 경우 공백으로 설정하여 API가 현재 사용자를 사용하도록 함
+      if (selectedAuthor === 'current_user') {
+        authorData = '';
+      }
+      
+      console.log('선택된 작성자:', selectedAuthor);
+      
       // 백엔드에 맞게 데이터 형식 변환
       const apiData = {
         ...formData,
         title: { ko: formData.title },
         summary: { ko: formData.summary },
-        content: { ko: formData.content }
+        content: { ko: formData.content },
+        author: authorData  // 작성자 ID 설정
       };
       
       console.log('제출하는 데이터:', apiData);
@@ -159,7 +170,15 @@ export default function CreateESGPage() {
       });
 
       // 자세한 응답 로깅
-      const responseData = await response.json();
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('응답을 JSON으로 파싱할 수 없습니다:', responseText);
+        responseData = { error: '서버 응답을 처리할 수 없습니다' };
+      }
+      
       console.log('API 응답 상태:', response.status, response.statusText);
       console.log('API 응답 내용:', responseData);
 

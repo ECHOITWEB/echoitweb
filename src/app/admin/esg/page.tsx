@@ -393,10 +393,22 @@ export default function AdminESGPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{authorName}</span>
-                          <span className="text-xs text-gray-500">{authorDepartment}</span>
-                        </div>
+                        {post.author ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-700">
+                              {typeof post.author === 'string' 
+                                ? post.author 
+                                : (post.author.name || '알 수 없음')}
+                            </span>
+                            {typeof post.author === 'object' && post.author.department && (
+                              <span className="text-xs text-gray-500 mt-1">
+                                {post.author.department}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">

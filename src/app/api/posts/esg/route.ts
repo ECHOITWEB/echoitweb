@@ -5,6 +5,7 @@ import { AuthorDepartment } from '@/types/esg';
 import { translate } from '@/lib/translate';
 import { requireEditor } from '@/lib/auth/middleware';
 import { createSlug } from '@/lib/utils/slug';
+import { User } from '@/lib/db/models/User';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,6 +29,11 @@ export async function POST(req: NextRequest) {
     await connectToDatabase();
     const data = await req.json();
     const { title, summary, content, category, publishDate, imageSource, author, tags } = data;
+    
+    console.log('받은 데이터 확인:', {
+      title: typeof title === 'object' ? JSON.stringify(title) : title,
+      author: typeof author === 'object' ? JSON.stringify(author) : author
+    });
 
     // 필수 필드 체크
     if (!title || !content || !category) {
@@ -46,13 +52,88 @@ export async function POST(req: NextRequest) {
     }
 
     // 슬러그 생성
-    const slug = await createSlug(title.ko || title);
+    let slug;
+    try {
+      console.log('슬러그 생성 시도 중 - 입력값:', typeof title === 'object' ? JSON.stringify(title) : title);
+      slug = await createSlug(title);
+      console.log('슬러그 생성 완료:', slug);
+      
+      if (!slug) {
+        throw new Error('슬러그가 생성되지 않았습니다.');
+      }
+    } catch (error: any) {
+      console.error('슬러그 생성 중 오류:', error);
+      // 기본 슬러그 생성 (fallback)
+      slug = `esg-post-${Date.now()}`;
+      console.log('기본 슬러그 사용:', slug);
+    }
 
     // 작성자 정보 구성
-    const authorData = {
-      name: typeof author === 'string' ? author : author.name || '관리자', 
-      department: typeof author === 'string' ? AuthorDepartment.ADMIN : author.department || AuthorDepartment.ADMIN
+    let authorData: any = {
+      name: '관리자',
+      department: AuthorDepartment.ADMIN
     };
+    
+    try {
+      // author가 ID인 경우 사용자 정보 조회
+      if (typeof author === 'string' && author.length > 10) {
+        // MongoDB ID 형식인 경우 사용자 정보 조회 시도
+        console.log('사용자 ID로 작성자 정보 조회 시도:', author);
+        const userInfo = await User.findById(author);
+        
+        if (userInfo) {
+          console.log('작성자 사용자 정보 조회 성공:', userInfo.username);
+          
+          // 이름 처리
+          let displayName = '관리자';
+          if (typeof userInfo.name === 'object' && userInfo.name) {
+            displayName = `${userInfo.name.first || ''} ${userInfo.name.last || ''}`.trim();
+          } else if (typeof userInfo.name === 'string' && userInfo.name) {
+            displayName = userInfo.name;
+          } else {
+            displayName = userInfo.username;
+          }
+          
+          // 역할 결정
+          let role = userInfo.role || 'viewer';
+          if (userInfo.roles && Array.isArray(userInfo.roles) && userInfo.roles.length > 0) {
+            if (userInfo.roles.includes('admin')) {
+              role = 'admin';
+            } else if (userInfo.roles.includes('editor')) {
+              role = 'editor';
+            }
+          }
+          
+          authorData = {
+            id: userInfo._id.toString(),
+            name: displayName,
+            department: role === 'admin' ? AuthorDepartment.ADMIN : 
+                        role === 'editor' ? AuthorDepartment.EDITOR : 
+                        AuthorDepartment.USER
+          };
+        } else {
+          console.log('작성자 사용자 정보를 찾을 수 없음:', author);
+        }
+      } else if (typeof author === 'object' && author !== null) {
+        authorData = {
+          name: author.name || '관리자',
+          department: author.department || AuthorDepartment.ADMIN
+        };
+      }
+    } catch (error) {
+      console.error('작성자 정보 처리 중 오류:', error);
+      // 오류 발생 시 기본값 사용
+      authorData = {
+        name: user.username || '관리자',
+        department: AuthorDepartment.ADMIN
+      };
+    }
+    
+    console.log('포스트 생성 시도 - 데이터:', {
+      title: typeof title === 'object' ? JSON.stringify(title) : title,
+      slug,
+      author: JSON.stringify(authorData)
+    });
 
     const post = await ESGPost.create({
       title,
@@ -68,6 +149,8 @@ export async function POST(req: NextRequest) {
       viewCount: 0,
       tags: tags || []
     });
+    
+    console.log('ESG 포스트 생성 성공:', post._id);
 
     return NextResponse.json({ 
       success: true,

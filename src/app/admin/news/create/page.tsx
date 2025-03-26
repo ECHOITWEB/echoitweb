@@ -42,6 +42,7 @@ export default function CreateNewsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormError[]>([]);
   const [authors, setAuthors] = useState<Author[]>([]);
+  const [selectedAuthor, setSelectedAuthor] = useState('current_user');
 
   const [formData, setFormData] = useState<IFormData>({
     title: '',
@@ -91,12 +92,23 @@ export default function CreateNewsPage() {
     setIsSubmitting(true);
 
     try {
+      // 작성자 정보 처리
+      let authorData = selectedAuthor;
+      
+      // 기본값이 'current_user'인 경우 공백으로 설정하여 API가 현재 사용자를 사용하도록 함
+      if (selectedAuthor === 'current_user') {
+        authorData = '';
+      }
+      
+      console.log('선택된 작성자:', selectedAuthor);
+      
       // 백엔드에 맞게 데이터 형식 변환
       const apiData = {
         ...formData,
         title: { ko: formData.title },
         summary: { ko: formData.summary },
-        content: { ko: formData.content }
+        content: { ko: formData.content },
+        author: authorData  // 작성자 ID 설정
       };
       
       console.log('제출하는 데이터:', apiData);
@@ -110,12 +122,30 @@ export default function CreateNewsPage() {
           const sessionData = JSON.parse(session);
           accessToken = sessionData.accessToken;
           console.log('인증 토큰 확인:', accessToken ? '존재함' : '없음');
+          
+          // 토큰 디코딩 시도 (base64 디코딩)
+          if (accessToken) {
+            const tokenParts = accessToken.split('.');
+            if (tokenParts.length === 3) {
+              const payload = tokenParts[1];
+              const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+              const decodedPayload = atob(base64);
+              const decodedToken = JSON.parse(decodedPayload);
+              console.log('디코딩된 토큰 페이로드:', decodedToken);
+              console.log('사용자 역할:', decodedToken.role, decodedToken.roles);
+            }
+          }
         } catch (e) {
           console.error('세션 파싱 오류:', e);
         }
       }
       
       // API 요청 보내기
+      console.log('API 요청 헤더:', {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      });
+      
       const response = await fetch('/api/posts/news', {
         method: 'POST',
         headers: {
@@ -125,9 +155,21 @@ export default function CreateNewsPage() {
         body: JSON.stringify(apiData),
       });
 
+      // 자세한 응답 로깅
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('응답을 JSON으로 파싱할 수 없습니다:', responseText);
+        responseData = { error: '서버 응답을 처리할 수 없습니다' };
+      }
+      
+      console.log('API 응답 상태:', response.status, response.statusText);
+      console.log('API 응답 내용:', responseData);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '뉴스 포스트 생성에 실패했습니다.');
+        throw new Error(responseData.error || responseData.message || '뉴스 포스트 생성에 실패했습니다.');
       }
 
       toast({
@@ -148,10 +190,11 @@ export default function CreateNewsPage() {
     }
   };
 
-  const handleAuthorChange = (authorName: string) => {
+  const handleAuthorChange = (authorId: string) => {
+    setSelectedAuthor(authorId);
     setFormData(prev => ({
       ...prev,
-      author: authorName
+      author: authorId
     }));
   };
 
@@ -292,19 +335,17 @@ export default function CreateNewsPage() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">작성자 <span className="text-gray-500 text-xs">(선택사항)</span></label>
-          <AuthorSelect
-            value={formData.author}
-            onChange={handleAuthorChange}
-            required={false}
+          <label className="text-sm font-medium">작성자</label>
+          <AuthorSelect 
+            value={selectedAuthor} 
+            onChange={handleAuthorChange} 
           />
-          <p className="text-xs text-gray-500">선택하지 않으면 현재 로그인한 계정의 정보로 자동 등록됩니다.</p>
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium">내용</label>
           <TinyEditor
-            initialValue={formData.content}
+            value={formData.content}
             onChange={(content) => setFormData({ ...formData, content })}
           />
           {errors.some(e => e.field === 'content') && (
