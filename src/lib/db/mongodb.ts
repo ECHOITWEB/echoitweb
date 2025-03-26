@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ConnectOptions } from 'mongoose';
 
 // MongoDB 연결 URI (실제 프로덕션에서는 환경 변수로 관리)
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/echoit';
@@ -31,22 +32,24 @@ export async function connectToDatabase() {
 
   // 연결이 진행 중이면 기존 Promise 재사용
   if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
+    const opts: ConnectOptions = {
+      bufferCommands: true, // 버퍼 명령 활성화
       maxPoolSize: 10, // 연결 풀 크기 설정
-      serverSelectionTimeoutMS: 10000, // 서버 선택 타임아웃 설정
+      serverSelectionTimeoutMS: 30000, // 서버 선택 타임아웃 증가
       socketTimeoutMS: 45000, // 소켓 타임아웃 설정
-      family: 4 // IPv4 사용 (필요한 경우)
+      family: 4, // IPv4 사용
+      retryWrites: true, // 쓰기 재시도 활성화
+      w: 'majority' // 쓰기 확인 레벨
     };
 
     // 연결 시도
     cached.promise = mongoose.connect(MONGODB_URI, opts)
       .then(mongoose => {
-        console.log('MongoDB 연결 성공');
+        console.log('MongoDB Atlas에 연결되었습니다.');
         return mongoose.connection;
       })
       .catch(err => {
-        console.error('MongoDB 연결 실패:', err);
+        console.error('MongoDB Atlas 연결 실패:', err);
         cached.promise = null;
         throw err;
       });
@@ -64,15 +67,15 @@ export async function connectToDatabase() {
 
 // 연결 상태 모니터링
 mongoose.connection.on('connected', () => {
-  console.log('MongoDB에 연결되었습니다.');
+  console.log('MongoDB Atlas에 연결되었습니다.');
 });
 
 mongoose.connection.on('error', (err) => {
-  console.error('MongoDB 연결 오류:', err);
+  console.error('MongoDB Atlas 연결 오류:', err);
 });
 
 mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB 연결이 끊어졌습니다.');
+  console.log('MongoDB Atlas 연결이 끊어졌습니다.');
 });
 
 // 애플리케이션 종료 시 연결 종료

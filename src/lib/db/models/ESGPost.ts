@@ -4,23 +4,34 @@ import { IUser } from './User';
 // 다국어 콘텐츠를 위한 인터페이스
 interface IMultiLingual {
   ko: string;
-  en: string;
+  en?: string; // 영문은 선택사항 (자동 번역 사용)
+}
+
+// ESG 카테고리 enum
+export enum ESGCategory {
+  ENVIRONMENT = 'environment', // 환경
+  SOCIAL = 'social', // 사회
+  GOVERNANCE = 'governance', // 지배구조
+  CSR = 'csr', // 사회공헌사업
+  SUSTAINABILITY = 'sustainability', // 지속가능경영
+  ESG_MANAGEMENT = 'esg_management', // ESG경영
+  OTHER = 'other' // 기타
 }
 
 // ESG 게시물 문서 인터페이스
 export interface IESGPost extends Document {
   title: IMultiLingual;
-  subtitle: IMultiLingual;
+  summary: IMultiLingual;
   content: IMultiLingual;
-  slug: string;
+  category: ESGCategory;
   author: Types.ObjectId | IUser;
-  imageUrl: string;
-  category: string;
-  esgType: 'environment' | 'social' | 'governance';
-  tags: string[];
+  publishDate: Date;
+  originalUrl?: string; // 선택사항: 원본 링크
+  isMainFeatured: boolean; // 메인 노출 여부
+  scheduledPublishDate?: Date; // 선택사항: 예약 송출 시간
+  thumbnailUrl?: string; // 선택사항: 대표 이미지 URL
   viewCount: number;
   isPublished: boolean;
-  publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,7 +39,7 @@ export interface IESGPost extends Document {
 // 다국어 콘텐츠를 위한 스키마
 const multiLingualSchema = new Schema<IMultiLingual>({
   ko: { type: String, required: true },
-  en: { type: String, required: true }
+  en: { type: String, required: false } // 영문은 선택사항으로 변경
 }, { _id: false });
 
 // ESG 게시물 스키마
@@ -39,50 +50,67 @@ const esgPostSchema = new Schema<IESGPost>(
       required: true,
       validate: {
         validator: function(v: IMultiLingual) {
-          return v.ko.length > 0 && v.en.length > 0;
+          return v.ko.length > 0;
         },
-        message: '제목은 한국어와 영어 모두 입력해야 합니다.'
+        message: '제목은 필수 입력 항목입니다.'
       }
     },
-    subtitle: {
+    summary: {
       type: multiLingualSchema,
-      required: true
+      required: true,
+      validate: {
+        validator: function(v: IMultiLingual) {
+          return v.ko.length > 0 && v.ko.length <= 200;
+        },
+        message: '요약은 필수 입력 항목이며 200자를 초과할 수 없습니다.'
+      }
     },
     content: {
       type: multiLingualSchema,
-      required: true
-    },
-    slug: {
-      type: String,
       required: true,
-      unique: true,
-      trim: true,
-      lowercase: true,
-      index: true
+      validate: {
+        validator: function(v: IMultiLingual) {
+          return v.ko.length > 0;
+        },
+        message: '내용은 필수 입력 항목입니다.'
+      }
+    },
+    category: {
+      type: String,
+      enum: Object.values(ESGCategory),
+      required: true
     },
     author: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true
     },
-    imageUrl: {
-      type: String,
-      default: ''
-    },
-    category: {
-      type: String,
+    publishDate: {
+      type: Date,
       required: true,
-      index: true
+      default: Date.now
     },
-    esgType: {
+    originalUrl: {
       type: String,
-      enum: ['environment', 'social', 'governance'],
-      required: true,
-      index: true
+      required: false,
+      validate: {
+        validator: function(v: string) {
+          return !v || /^https?:\/\/.+/.test(v);
+        },
+        message: '올바른 URL 형식이 아닙니다.'
+      }
     },
-    tags: {
-      type: [String],
-      default: []
+    isMainFeatured: {
+      type: Boolean,
+      default: true
+    },
+    scheduledPublishDate: {
+      type: Date,
+      required: false
+    },
+    thumbnailUrl: {
+      type: String,
+      required: false
     },
     viewCount: {
       type: Number,
@@ -90,11 +118,7 @@ const esgPostSchema = new Schema<IESGPost>(
     },
     isPublished: {
       type: Boolean,
-      default: false
-    },
-    publishedAt: {
-      type: Date,
-      default: null
+      default: true
     }
   },
   {
@@ -102,19 +126,10 @@ const esgPostSchema = new Schema<IESGPost>(
   }
 );
 
-// 게시물 제목과 슬러그로 인덱스 생성
+// 게시물 제목으로 인덱스 생성
 esgPostSchema.index({ 'title.ko': 1 });
-esgPostSchema.index({ 'title.en': 1 });
+esgPostSchema.index({ category: 1, publishDate: -1 });
 
-// 게시물 게시 시 publishedAt 자동 설정
-esgPostSchema.pre('save', function(next) {
-  if (this.isModified('isPublished') && this.isPublished && !this.publishedAt) {
-    this.publishedAt = new Date();
-  }
-  next();
-});
-
-// 모델 생성 및 내보내기
 export const ESGPost = mongoose.models.ESGPost || mongoose.model<IESGPost>('ESGPost', esgPostSchema);
 
 export default ESGPost;

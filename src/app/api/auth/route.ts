@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
         username: 'admin',
         email: 'admin@echoit.co.kr',
         password: 'echoit1111@',
-        name: '관리자',
+        name: {
+          first: '관리자',
+          last: '님'
+        },
         role: UserRole.ADMIN
       });
 

@@ -1,27 +1,24 @@
 import { useCallback, useRef } from 'react'
-import { Editor } from '@tiptap/react'
-import { useEditor } from '@tiptap/react'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
 import {
+  ImageIcon,
+  LinkIcon,
   Bold,
   Italic,
   Underline,
-  Strikethrough,
-  List,
-  ListOrdered,
-  Link as LinkIcon,
-  Image as ImageIcon,
   Heading1,
   Heading2,
-  Code
+  List,
+  ListOrdered
 } from 'lucide-react'
 
 interface BlogEditorProps {
-  content: string
+  content?: string
   onChange: (content: string) => void
   label?: string
   placeholder?: string
@@ -30,7 +27,7 @@ interface BlogEditorProps {
 }
 
 export function BlogEditor({
-  content,
+  content = '',
   onChange,
   label,
   placeholder,
@@ -42,26 +39,15 @@ export function BlogEditor({
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Image.configure({
-        HTMLAttributes: {
-          class: 'max-w-full h-auto rounded-lg',
-        },
-      }),
+      Image,
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-blue-500 hover:text-blue-700 underline',
-        },
       }),
     ],
-    content,
+    content: content || '',
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML())
-    },
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none',
-      },
+      const html = editor.getHTML()
+      onChange(html)
     },
   })
 
@@ -92,19 +78,17 @@ export function BlogEditor({
     }
   }
 
-  if (!editor) return null
+  if (!editor) {
+    return null
+  }
 
   return (
-    <div className="w-full">
-      {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          {label}
-        </label>
-      )}
-      
-      <div className={`border rounded-lg overflow-hidden ${isInvalid ? 'border-red-500' : 'border-gray-300'}`}>
-        <div className="bg-white dark:bg-gray-800 p-2 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-1">
+    <div className="space-y-2">
+      {label && <label className="text-sm font-medium">{label}</label>}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="flex items-center gap-1 border-b p-2 bg-white">
           <Toggle
+            size="sm"
             pressed={editor.isActive('bold')}
             onPressedChange={() => editor.chain().focus().toggleBold().run()}
             aria-label="Bold"
@@ -113,6 +97,7 @@ export function BlogEditor({
           </Toggle>
           
           <Toggle
+            size="sm"
             pressed={editor.isActive('italic')}
             onPressedChange={() => editor.chain().focus().toggleItalic().run()}
             aria-label="Italic"
@@ -121,6 +106,7 @@ export function BlogEditor({
           </Toggle>
           
           <Toggle
+            size="sm"
             pressed={editor.isActive('underline')}
             onPressedChange={() => editor.chain().focus().toggleUnderline().run()}
             aria-label="Underline"
@@ -128,17 +114,10 @@ export function BlogEditor({
             <Underline className="h-4 w-4" />
           </Toggle>
           
-          <Toggle
-            pressed={editor.isActive('strike')}
-            onPressedChange={() => editor.chain().focus().toggleStrike().run()}
-            aria-label="Strikethrough"
-          >
-            <Strikethrough className="h-4 w-4" />
-          </Toggle>
-          
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
           
           <Toggle
+            size="sm"
             pressed={editor.isActive('bulletList')}
             onPressedChange={() => editor.chain().focus().toggleBulletList().run()}
             aria-label="Bullet list"
@@ -147,6 +126,7 @@ export function BlogEditor({
           </Toggle>
           
           <Toggle
+            size="sm"
             pressed={editor.isActive('orderedList')}
             onPressedChange={() => editor.chain().focus().toggleOrderedList().run()}
             aria-label="Ordered list"
@@ -157,6 +137,7 @@ export function BlogEditor({
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
           
           <Toggle
+            size="sm"
             pressed={editor.isActive('heading', { level: 1 })}
             onPressedChange={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
             aria-label="Heading 1"
@@ -165,6 +146,7 @@ export function BlogEditor({
           </Toggle>
           
           <Toggle
+            size="sm"
             pressed={editor.isActive('heading', { level: 2 })}
             onPressedChange={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             aria-label="Heading 2"
@@ -206,14 +188,12 @@ export function BlogEditor({
           />
         </div>
         
-        <div
+        <EditorContent
+          editor={editor}
           className={`p-4 min-h-[200px] prose prose-sm sm:prose lg:prose-lg xl:prose-2xl max-w-none ${
             isInvalid ? 'prose-red' : ''
           }`}
-          onClick={() => editor.chain().focus().run()}
-        >
-          {editor.view.dom}
-        </div>
+        />
       </div>
       
       {isInvalid && errorMessage && (

@@ -6,8 +6,10 @@ import { useRealtimeDashboard, DashboardData } from '@/lib/hooks/useRealtimeDash
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
   RefreshCw, AlertCircle, BookOpen, FileText, Users, Clock, BarChart as BarChartIcon,
-  TrendingUp, Zap, CheckCircle, XCircle, Cpu, Activity
+  TrendingUp, Zap, CheckCircle, XCircle, Cpu, Activity, Eye, Leaf, Newspaper, Loader2
 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const CATEGORY_COLORS = {
@@ -16,9 +18,39 @@ const CATEGORY_COLORS = {
   'governance': '#FFBB28'
 };
 
+interface DashboardStats {
+  totalNews: number;
+  totalESG: number;
+  recentNews: number;
+  recentESG: number;
+  totalNewsViews: number;
+  totalNewsLikes: number;
+  totalESGViews: number;
+  totalESGLikes: number;
+}
+
+interface RecentPost {
+  _id: string;
+  title: string;
+  type: 'news' | 'esg';
+  category: string;
+  publishDate: string;
+  views: number;
+  likes: number;
+}
+
+interface DashboardData {
+  stats: DashboardStats;
+  recentPosts: RecentPost[];
+  categories: {
+    news: Array<{ _id: string; count: number }>;
+    esg: Array<{ _id: string; count: number }>;
+  };
+}
+
 export default function AdminDashboardPage() {
   const { user } = useAuth();
-  const { data, loading, error, connected, reconnect } = useRealtimeDashboard();
+  const { data, error, isLoading } = useRealtimeDashboard();
   const [lastUpdate, setLastUpdate] = useState<string>('');
 
   // Update the last update time whenever new dashboard data arrives
@@ -29,82 +61,44 @@ export default function AdminDashboardPage() {
     }
   }, [data?.serverTime]);
 
-  // Handle reconnection on errors
-  const handleReconnect = () => {
-    reconnect();
-  };
-
-  // If loading and no data, show a loading state
-  if (loading && !data) {
+  if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">대시보드</h1>
-        </div>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-          <span className="ml-3 text-gray-600 dark:text-gray-300">데이터를 불러오는 중...</span>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
   }
 
-  // If error, show error state with reconnect button
-  if (error && !data) {
+  if (error) {
     return (
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">대시보드</h1>
-          <button
-            onClick={handleReconnect}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            재연결
-          </button>
-        </div>
-        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3" />
-            <div>
-              <h3 className="text-lg font-medium text-red-800 dark:text-red-300">
-                데이터 로드 오류
-              </h3>
-              <p className="mt-1 text-sm text-red-700 dark:text-red-300">
-                {error}
-              </p>
-              <p className="mt-2 text-sm text-red-700 dark:text-red-300">
-                재연결 버튼을 클릭하여 다시 시도해주세요.
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <AlertCircle className="w-8 h-8 text-red-500" />
+        <p className="text-lg font-medium text-red-500">{error.message}</p>
+        <Button
+          onClick={() => window.location.reload()}
+          variant="outline"
+          className="mt-2"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          새로고침
+        </Button>
       </div>
     );
   }
 
-  // If no data available yet, show placeholder
   if (!data) {
     return (
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">대시보드</h1>
-          <button
-            onClick={handleReconnect}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            새로고침
-          </button>
-        </div>
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 mr-3" />
-            <p className="text-yellow-700 dark:text-yellow-300">
-              대시보드 데이터를 불러올 수 없습니다. 새로고침을 시도해주세요.
-            </p>
-          </div>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <AlertCircle className="w-8 h-8 text-yellow-500" />
+        <p className="text-lg font-medium text-yellow-500">데이터를 불러올 수 없습니다.</p>
+        <Button
+          onClick={() => window.location.reload()}
+          variant="outline"
+          className="mt-2"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          다시 시도
+        </Button>
       </div>
     );
   }
@@ -113,211 +107,140 @@ export default function AdminDashboardPage() {
   const { summary, recentActivity, analytics } = data;
 
   return (
-    <div className="p-6">
-      {/* Header */}
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">관리자 대시보드</h1>
-        <div className="flex items-center">
-          <span className="text-sm text-gray-500 dark:text-gray-400 mr-3">
-            마지막 업데이트: {lastUpdate}
-          </span>
-          <div className="flex items-center mr-4">
-            <div className={`w-2 h-2 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-sm text-gray-600 dark:text-gray-300">
-              {connected ? '연결됨' : '연결 끊김'}
-            </span>
-          </div>
-          <button
-            onClick={handleReconnect}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                업데이트 중...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                새로고침
-              </>
-            )}
-          </button>
+        <h1 className="text-2xl font-bold">대시보드</h1>
+        <div className="flex items-center text-sm text-gray-500">
+          마지막 업데이트: {lastUpdate}
+          <RefreshCw className="w-4 h-4 ml-2" />
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <StatCard
-          title="총 게시물"
-          value={summary.totalPosts}
-          icon={<FileText className="w-5 h-5" />}
-          subtext={`이번 달: ${summary.postsThisMonth}개 게시`}
-          color="blue"
-        />
-        <StatCard
-          title="뉴스 게시물"
-          value={summary.totalNews}
-          icon={<BookOpen className="w-5 h-5" />}
-          subtext={`평균 조회수: ${calculateAverage(analytics.topViewedNews, 'viewCount')}`}
-          color="indigo"
-        />
-        <StatCard
-          title="ESG 게시물"
-          value={summary.totalESG}
-          icon={<FileText className="w-5 h-5" />}
-          subtext={`평균 조회수: ${calculateAverage(analytics.topViewedESG, 'viewCount')}`}
-          color="green"
-        />
-        <StatCard
-          title="사용자"
-          value={summary.totalUsers}
-          icon={<Users className="w-5 h-5" />}
-          subtext={`관리자: ${summary.usersByRole.admin}, 편집자: ${summary.usersByRole.editor}`}
-          color="amber"
-        />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">전체 뉴스</CardTitle>
+            <Newspaper className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.stats.totalNews}</div>
+            <p className="text-xs text-muted-foreground">
+              최근 30일: +{data.stats.recentNews}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">전체 ESG</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.stats.totalESG}</div>
+            <p className="text-xs text-muted-foreground">
+              최근 30일: +{data.stats.recentESG}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">뉴스 통계</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.stats.totalNewsViews}</div>
+            <p className="text-xs text-muted-foreground">
+              좋아요: {data.stats.totalNewsLikes}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">ESG 통계</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.stats.totalESGViews}</div>
+            <p className="text-xs text-muted-foreground">
+              좋아요: {data.stats.totalESGLikes}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* ESG Category Distribution */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-            ESG 카테고리 분포
-          </h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={analytics.esgCategoryDistribution}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={true}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  nameKey="name"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {analytics.esgCategoryDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Hourly Views */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-            시간별 조회수
-          </h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={analytics.hourlyViews}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <XAxis
-                  dataKey="formattedHour"
-                  tick={{ fontSize: 12 }}
-                  interval={3}
-                />
-                <YAxis />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="views"
-                  stroke="#8884d8"
-                  activeDot={{ r: 8 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      <div className="mt-6">
+        <h2 className="text-lg font-semibold mb-4">최근 게시물</h2>
+        <div className="space-y-4">
+          {data.recentPosts.map((post) => (
+            <div key={post._id} className="flex items-center justify-between p-4 bg-white rounded-lg shadow">
+              <div>
+                <h3 className="font-medium">{post.title}</h3>
+                <p className="text-sm text-gray-500">
+                  {post.type === 'news' ? '뉴스' : 'ESG'} - {post.category}
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-500">
+                  조회수: {post.views}
+                </div>
+                <div className="text-sm text-gray-500">
+                  좋아요: {post.likes}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {new Date(post.publishDate).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Recent Activity and Popular Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-              최근 활동
-            </h2>
-          </div>
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {recentActivity.news.slice(0, 3).map((item) => (
-              <ActivityItem
-                key={item.id}
-                title={item.title}
-                time={formatTime(item.createdAt)}
-                type="news"
-              />
-            ))}
-            {recentActivity.esg.slice(0, 3).map((item) => (
-              <ActivityItem
-                key={item.id}
-                title={item.title}
-                time={formatTime(item.createdAt)}
-                type="esg"
-                category={item.category}
-              />
-            ))}
-            {recentActivity.logins.slice(0, 3).map((item) => (
-              <ActivityItem
-                key={item.id}
-                title={`${item.name} (${item.username}) 로그인`}
-                time={formatTime(item.lastLogin)}
-                type="login"
-                role={item.role}
-              />
-            ))}
-          </div>
-        </div>
+      <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>뉴스 카테고리 분포</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {data.categories.news.map((category) => (
+                <div key={category._id} className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{category._id}</span>
+                  <span className="text-sm text-gray-500">{category.count}개</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Popular Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-              인기 콘텐츠 (조회수)
-            </h2>
-          </div>
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {analytics.topViewedNews.slice(0, 3).map((item) => (
-              <PopularItem
-                key={item.id}
-                title={item.title}
-                views={item.viewCount}
-                type="news"
-              />
-            ))}
-            {analytics.topViewedESG.slice(0, 3).map((item) => (
-              <PopularItem
-                key={item.id}
-                title={item.title}
-                views={item.viewCount}
-                type="esg"
-                category={item.category}
-              />
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>ESG 카테고리 분포</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {data.categories.esg.map((category) => (
+                <div key={category._id} className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{category._id}</span>
+                  <span className="text-sm text-gray-500">{category.count}개</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
 
 // Component for displaying summary statistics
-function StatCard({ title, value, icon, subtext, color }: {
+function StatCard({ title, value, change, icon, period }: {
   title: string;
   value: number;
+  change?: number;
   icon: React.ReactNode;
-  subtext: string;
-  color: 'blue' | 'green' | 'amber' | 'indigo' | 'purple';
+  period?: string;
 }) {
   const colorClasses = {
     blue: "bg-blue-50 text-blue-500 dark:bg-blue-900/30 dark:text-blue-400",
@@ -329,144 +252,17 @@ function StatCard({ title, value, icon, subtext, color }: {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-      <div className="flex items-center">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${colorClasses[color]}`}>
-          {icon}
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          <p className="text-2xl font-bold mt-1">{value}</p>
+          {change !== undefined && period && (
+            <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+              ↑ {change}% {period}
+            </p>
+          )}
         </div>
-        <div className="ml-4">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-            {title}
-          </h3>
-          <div className="text-2xl font-bold text-gray-800 dark:text-white">
-            {value.toLocaleString()}
-          </div>
-        </div>
-      </div>
-      <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-        {subtext}
-      </div>
-    </div>
-  );
-}
-
-// Component for displaying activity items
-function ActivityItem({ title, time, type, category, role }: {
-  title: string;
-  time: string;
-  type: 'news' | 'esg' | 'login';
-  category?: string;
-  role?: string;
-}) {
-  const getIcon = () => {
-    switch (type) {
-      case 'news':
-        return <BookOpen className="w-4 h-4 text-blue-500" />;
-      case 'esg':
-        return <FileText className="w-4 h-4 text-green-500" />;
-      case 'login':
-        return <Users className="w-4 h-4 text-amber-500" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
-  const getBadge = () => {
-    if (type === 'esg' && category) {
-      return (
-        <span
-          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-          style={{ backgroundColor: `${CATEGORY_COLORS[category]}20`, color: CATEGORY_COLORS[category] }}
-        >
-          {category === 'environment' && '환경(E)'}
-          {category === 'social' && '사회(S)'}
-          {category === 'governance' && '지배구조(G)'}
-        </span>
-      );
-    }
-
-    if (type === 'login' && role) {
-      const roleColors = {
-        admin: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-        editor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-        viewer: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-      };
-
-      const roleNames = {
-        admin: '관리자',
-        editor: '편집자',
-        viewer: '조회자'
-      };
-
-      return (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[role]}`}>
-          {roleNames[role]}
-        </span>
-      );
-    }
-
-    return null;
-  };
-
-  return (
-    <div className="px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          {getIcon()}
-          <span className="ml-3 text-sm font-medium text-gray-800 dark:text-white">{title}</span>
-          {getBadge() && <span className="ml-2">{getBadge()}</span>}
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">{time}</div>
-      </div>
-    </div>
-  );
-}
-
-// Component for displaying popular content items
-function PopularItem({ title, views, type, category }: {
-  title: string;
-  views: number;
-  type: 'news' | 'esg';
-  category?: string;
-}) {
-  const getIcon = () => {
-    switch (type) {
-      case 'news':
-        return <BookOpen className="w-4 h-4 text-blue-500" />;
-      case 'esg':
-        return <FileText className="w-4 h-4 text-green-500" />;
-      default:
-        return <BarChartIcon className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
-  const getBadge = () => {
-    if (type === 'esg' && category) {
-      return (
-        <span
-          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-          style={{ backgroundColor: `${CATEGORY_COLORS[category]}20`, color: CATEGORY_COLORS[category] }}
-        >
-          {category === 'environment' && '환경(E)'}
-          {category === 'social' && '사회(S)'}
-          {category === 'governance' && '지배구조(G)'}
-        </span>
-      );
-    }
-
-    return null;
-  };
-
-  return (
-    <div className="px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          {getIcon()}
-          <span className="ml-3 text-sm font-medium text-gray-800 dark:text-white">{title}</span>
-          {getBadge() && <span className="ml-2">{getBadge()}</span>}
-        </div>
-        <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          {views} <span className="text-xs">조회</span>
-        </div>
+        <div className="text-blue-500 dark:text-blue-400">{icon}</div>
       </div>
     </div>
   );

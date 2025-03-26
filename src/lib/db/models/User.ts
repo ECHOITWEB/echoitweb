@@ -13,10 +13,13 @@ export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
-  name: string;
-  role: UserRole;
+  name: {
+    first: string;
+    last: string;
+  };
+  roles: string[];
   isActive: boolean;
-  lastLogin: Date | null;
+  lastLogin: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword: (password: string) => Promise<boolean>;
@@ -47,15 +50,19 @@ const userSchema = new Schema<IUser>(
       minlength: 8
     },
     name: {
-      type: String,
-      required: true,
-      trim: true
+      first: {
+        type: String,
+        required: true
+      },
+      last: {
+        type: String,
+        required: true
+      }
     },
-    role: {
+    roles: [{
       type: String,
-      enum: Object.values(UserRole),
-      default: UserRole.VIEWER
-    },
+      enum: ['admin', 'editor', 'user']
+    }],
     isActive: {
       type: Boolean,
       default: true

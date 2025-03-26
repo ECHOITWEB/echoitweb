@@ -98,6 +98,20 @@ export default function NewsPostDetail({ post }: { post: ReturnType<typeof getNe
               <p key={index}>{paragraph}</p>
             ))}
           </div>
+
+          {/* 태그 섹션 */}
+          {post.tags && post.tags.length > 0 && (
+            <div className="mt-8 flex flex-wrap gap-2">
+              {post.tags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors cursor-pointer"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-12 pt-8 border-t border-gray-200">

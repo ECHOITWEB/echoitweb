@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { UploadCloud, X, File, Check, AlertCircle, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
+import { Button } from './button';
 
 interface FileUploadProps {
   onUploadComplete: (url: string) => void;
@@ -13,6 +15,7 @@ interface FileUploadProps {
   description?: string;
   className?: string;
   variant?: 'image' | 'document';
+  currentImage?: string;
 }
 
 export default function FileUpload({
@@ -23,7 +26,8 @@ export default function FileUpload({
   label = '파일 업로드',
   description = '여기에 파일을 끌어다 놓거나 클릭하여 선택하세요.',
   className = '',
-  variant = 'image'
+  variant = 'image',
+  currentImage
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -31,7 +35,7 @@ export default function FileUpload({
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(currentImage || null);
   const [useUrlInput, setUseUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -195,6 +199,47 @@ export default function FileUpload({
     setUseUrlInput(!useUrlInput);
   };
 
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('업로드 실패');
+      }
+
+      const data = await response.json();
+      onUploadComplete(data.url);
+      setPreviewUrl(data.url);
+    } catch (error) {
+      console.error('파일 업로드 오류:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [onUploadComplete]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp']
+    },
+    maxFiles: 1,
+  });
+
+  const removeImage = () => {
+    setPreviewUrl(null);
+    onUploadComplete('');
+  };
+
   return (
     <div className={`${className} w-full`}>
       {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{label}</label>}
@@ -251,8 +296,9 @@ export default function FileUpload({
         </div>
       ) : !uploadedFile && !isUploading ? (
         <div
+          {...getRootProps()}
           className={`relative border-2 border-dashed rounded-lg p-6 cursor-pointer text-center transition-colors ${
-            isDragging
+            isDragging || isDragActive
               ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
               : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500'
           }`}
@@ -269,13 +315,15 @@ export default function FileUpload({
             onChange={(e) => handleFilesSelected(e.target.files)}
           />
 
-          <UploadCloud className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-3" />
-          <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{description}</p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {variant === 'image' ?
-              `PNG, JPG, GIF ${maxSizeMB}MB 이하` :
-              `PDF, DOC, DOCX ${maxSizeMB}MB 이하`}
-          </p>
+          <div className="flex flex-col items-center justify-center gap-2">
+            <UploadCloud className="w-8 h-8 text-gray-400 dark:text-gray-500 mb-3" />
+            <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{description}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {variant === 'image' ?
+                `PNG, JPG, GIF ${maxSizeMB}MB 이하` :
+                `PDF, DOC, DOCX ${maxSizeMB}MB 이하`}
+            </p>
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border border-gray-300 dark:border-gray-600 p-4">
@@ -356,6 +404,25 @@ export default function FileUpload({
         <div className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center">
           <AlertCircle className="h-4 w-4 mr-1" />
           {errorMessage}
+        </div>
+      )}
+
+      {previewUrl && (
+        <div className="relative w-40 h-40 mx-auto mt-4">
+          <Image
+            src={previewUrl}
+            alt="Preview"
+            fill
+            className="object-cover rounded-lg"
+          />
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full"
+            onClick={removeImage}
+          >
+            <X className="w-4 h-4" />
+          </Button>
         </div>
       )}
     </div>

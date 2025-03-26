@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthenticatedRequest, requireEditor } from '@/lib/auth/middleware';
-import { connectToDatabase } from '@/lib/db/mongodb';
-import { User, NewsPost, ESGPost } from '@/lib/db/models';
+import { connectToDatabase } from '@/lib/mongodb';
+import { User, NewsPost, ESGPost, IUser, INewsPost, IESGPost } from '@/lib/db/models';
+import { Db, Document } from 'mongodb';
 
 /**
  * 실시간 대시보드 데이터 API
@@ -17,8 +18,21 @@ export async function GET(req: NextRequest) {
     return authResult;
   }
 
-  // Server-Sent Events 설정
   const encoder = new TextEncoder();
+  let isConnectionActive = true;
+  let dbConnection: { client: any; db: Db } | null = null;
+
+  try {
+    // 초기 데이터베이스 연결
+    dbConnection = await connectToDatabase();
+  } catch (error) {
+    console.error('초기 데이터베이스 연결 실패:', error);
+    return new NextResponse(
+      JSON.stringify({ error: '데이터베이스 연결에 실패했습니다.' }),
+      { status: 500 }
+    );
+  }
+
   const customReadable = new ReadableStream({
     async start(controller) {
       // 초기 연결 메시지
@@ -26,58 +40,52 @@ export async function GET(req: NextRequest) {
 
       // 데이터 전송 함수
       const sendData = async () => {
+        if (!isConnectionActive) return;
+
         try {
-          // 데이터베이스 연결
-          await connectToDatabase();
+          if (!dbConnection) {
+            dbConnection = await connectToDatabase();
+          }
 
-          // 대시보드 데이터 수집 - 10초 타임아웃 추가
-          const dashboardData = await Promise.race([
-            collectDashboardData(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('데이터 수집 타임아웃')), 10000)
-            )
-          ]).catch(error => {
-            console.error('대시보드 데이터 수집 실패:', error);
-            return {
-              summary: { error: '데이터 로딩 중 타임아웃 발생' },
-              recentActivity: {},
-              analytics: {},
-              serverTime: new Date().toISOString()
-            };
-          });
+          const dashboardData = await collectDashboardData(dbConnection.db);
 
-          // 데이터 전송
-          controller.enqueue(encoder.encode(`event: dashboard_update\ndata: ${JSON.stringify(dashboardData)}\n\n`));
+          if (isConnectionActive) {
+            controller.enqueue(
+              encoder.encode(`event: dashboard_update\ndata: ${JSON.stringify(dashboardData)}\n\n`)
+            );
+          }
         } catch (error) {
           console.error('대시보드 데이터 수집 오류:', error);
-          controller.enqueue(encoder.encode(`event: error\ndata: {"message": "데이터 수집 중 오류가 발생했습니다."}\n\n`));
+          
+          if (isConnectionActive) {
+            controller.enqueue(
+              encoder.encode(`event: error\ndata: {"message": "데이터 수집 중 오류가 발생했습니다."}\n\n`)
+            );
+          }
 
-          // 3초 후 재시도
-          setTimeout(async () => {
-            try {
-              // 재연결 시도
-              await connectToDatabase();
-              controller.enqueue(encoder.encode('event: reconnected\ndata: {"status": "연결이 복구되었습니다."}\n\n'));
-            } catch (retryError) {
-              console.error('대시보드 재연결 실패:', retryError);
-            }
-          }, 3000);
+          // 연결 오류 시 재연결 시도
+          try {
+            dbConnection = await connectToDatabase();
+          } catch (reconnectError) {
+            console.error('데이터베이스 재연결 실패:', reconnectError);
+          }
         }
       };
 
       // 초기 데이터 전송
       await sendData();
 
-      // 10초마다 업데이트 전송 (기존 5초에서 10초로 변경)
-      const interval = setInterval(async () => {
-        await sendData();
-      }, 10000);
+      // 10초마다 업데이트 전송
+      const interval = setInterval(sendData, 10000);
 
-      // 클라이언트 연결 종료 시 인터벌 정리
-      // ReadableStream은 자동으로 cancel 콜백을 처리함
+      // 클라이언트 연결 종료 시 정리
       return () => {
+        isConnectionActive = false;
         clearInterval(interval);
       };
+    },
+    cancel() {
+      isConnectionActive = false;
     }
   });
 
@@ -93,15 +101,15 @@ export async function GET(req: NextRequest) {
 /**
  * 대시보드 데이터 수집 함수
  */
-async function collectDashboardData() {
+async function collectDashboardData(db: Db) {
   // 기본 데이터 및 요약
   const startTime = Date.now();
 
   // 쿼리 타임아웃 유틸리티 함수
-  const withTimeout = (promise, ms, fallbackValue) => {
+  const withTimeout = <T>(promise: Promise<T>, ms: number, fallbackValue: T): Promise<T> => {
     return Promise.race([
       promise,
-      new Promise(resolve => setTimeout(() => resolve(fallbackValue), ms))
+      new Promise<T>(resolve => setTimeout(() => resolve(fallbackValue), ms))
     ]);
   };
 
@@ -110,7 +118,6 @@ async function collectDashboardData() {
     totalUsers,
     totalNews,
     totalESG,
-    startOfMonth,
     newsThisMonth,
     esgThisMonth,
     recentNews,
@@ -126,47 +133,35 @@ async function collectDashboardData() {
     recentLogins
   ] = await Promise.all([
     // 카운트 쿼리 - 2초 타임아웃
-    withTimeout(User.countDocuments().exec(), 2000, 0),
-    withTimeout(NewsPost.countDocuments().exec(), 2000, 0),
-    withTimeout(ESGPost.countDocuments().exec(), 2000, 0),
-
-    // 이번 달 시작일 계산
-    (() => {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      return startOfMonth;
-    })(),
+    withTimeout(db.collection('users').countDocuments(), 2000, 0),
+    withTimeout(db.collection('newsposts').countDocuments(), 2000, 0),
+    withTimeout(db.collection('esgposts').countDocuments(), 2000, 0),
 
     // 이번 달 게시물 카운트 - 2초 타임아웃
-    withTimeout(NewsPost.countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }).exec(), 2000, 0),
-    withTimeout(ESGPost.countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }).exec(), 2000, 0),
+    withTimeout(db.collection('newsposts').countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }), 2000, 0),
+    withTimeout(db.collection('esgposts').countDocuments({ createdAt: { $gte: new Date(new Date().setDate(1)) } }), 2000, 0),
 
     // 최근 활동 정보 - 3초 타임아웃 
-    withTimeout(NewsPost.find().sort({ createdAt: -1 }).limit(5).select('title slug createdAt').lean().exec(), 3000, []),
-    withTimeout(ESGPost.find().sort({ createdAt: -1 }).limit(5).select('title slug category createdAt').lean().exec(), 3000, []),
+    withTimeout(db.collection('newsposts').find().sort({ createdAt: -1 }).limit(5).toArray(), 3000, []),
+    withTimeout(db.collection('esgposts').find().sort({ createdAt: -1 }).limit(5).toArray(), 3000, []),
 
     // 가장 많이 본 콘텐츠 - 3초 타임아웃
-    withTimeout(NewsPost.find().sort({ viewCount: -1 }).limit(5).select('title slug viewCount').lean().exec(), 3000, []),
-    withTimeout(ESGPost.find().sort({ viewCount: -1 }).limit(5).select('title slug category viewCount').lean().exec(), 3000, []),
+    withTimeout(db.collection('newsposts').find().sort({ viewCount: -1 }).limit(5).toArray(), 3000, []),
+    withTimeout(db.collection('esgposts').find().sort({ viewCount: -1 }).limit(5).toArray(), 3000, []),
 
     // ESG 카테고리별 게시물 수 - 2초 타임아웃
-    withTimeout(ESGPost.countDocuments({ category: 'environment' }).exec(), 2000, 0),
-    withTimeout(ESGPost.countDocuments({ category: 'social' }).exec(), 2000, 0),
-    withTimeout(ESGPost.countDocuments({ category: 'governance' }).exec(), 2000, 0),
+    withTimeout(db.collection('esgposts').countDocuments({ category: 'environment' }), 2000, 0),
+    withTimeout(db.collection('esgposts').countDocuments({ category: 'social' }), 2000, 0),
+    withTimeout(db.collection('esgposts').countDocuments({ category: 'governance' }), 2000, 0),
 
     // 사용자 역할별 수 - 2초 타임아웃
-    withTimeout(User.countDocuments({ role: 'admin' }).exec(), 2000, 0),
-    withTimeout(User.countDocuments({ role: 'editor' }).exec(), 2000, 0),
-    withTimeout(User.countDocuments({ role: 'viewer' }).exec(), 2000, 0),
+    withTimeout(db.collection('users').countDocuments({ roles: 'admin' }), 2000, 0),
+    withTimeout(db.collection('users').countDocuments({ roles: 'editor' }), 2000, 0),
+    withTimeout(db.collection('users').countDocuments({ roles: 'viewer' }), 2000, 0),
 
     // 최근 로그인 사용자 - 3초 타임아웃
-    withTimeout(User.find().where('lastLogin').ne(null).sort({ lastLogin: -1 }).limit(5)
-      .select('name username role lastLogin').lean().exec(), 3000, [])
+    withTimeout(db.collection('users').find().sort({ lastLogin: -1 }).limit(5).toArray(), 3000, [])
   ]);
-
-  // 계산 시간 측정
-  const computeTime = Date.now() - startTime;
 
   // 통합 대시보드 데이터
   return {
@@ -183,54 +178,19 @@ async function collectDashboardData() {
       }
     },
     recentActivity: {
-      news: recentNews.map(post => ({
-        id: post._id,
-        title: post.title,
-        slug: post.slug,
-        createdAt: post.createdAt
-      })),
-      esg: recentESG.map(post => ({
-        id: post._id,
-        title: post.title,
-        slug: post.slug,
-        category: post.category,
-        createdAt: post.createdAt
-      })),
-      logins: recentLogins.map(user => ({
-        id: user._id,
-        name: user.name,
-        username: user.username,
-        role: user.role,
-        lastLogin: user.lastLogin
-      }))
+      news: recentNews.map(mapNewsPost),
+      esg: recentESG.map(mapESGPost),
+      logins: recentLogins.map(mapUser)
     },
     analytics: {
-      topViewedNews: topViewedNews.map(post => ({
-        id: post._id,
-        title: post.title,
-        slug: post.slug,
-        viewCount: post.viewCount
-      })),
-      topViewedESG: topViewedESG.map(post => ({
-        id: post._id,
-        title: post.title,
-        slug: post.slug,
-        category: post.category,
-        viewCount: post.viewCount
-      })),
-      esgCategoryDistribution: [
-        { name: '환경(E)', value: environmentCount },
-        { name: '사회(S)', value: socialCount },
-        { name: '지배구조(G)', value: governanceCount }
-      ],
-      hourlyViews: generateHourlyViewsData()
+      topViewedNews: topViewedNews.map(mapNewsPost),
+      topViewedESG: topViewedESG.map(mapESGPost),
+      categoryDistribution: {
+        environment: environmentCount,
+        social: socialCount,
+        governance: governanceCount
+      }
     },
-    // 퍼포먼스 메트릭 및 서버 시간 추가
-    performance: {
-      queryTime: `${computeTime}ms`,
-      timestamp: new Date().toISOString()
-    },
-    // 서버 시간 추가 (클라이언트와의 동기화용)
     serverTime: new Date().toISOString()
   };
 }
@@ -272,3 +232,132 @@ function generateHourlyViewsData() {
 
   return hours;
 }
+
+export async function getMongoData() {
+  try {
+    const { db } = await connectToDatabase();
+
+    // 전체 뉴스 및 ESG 포스트 수 조회
+    const totalNews = await db.collection('posts').countDocuments({ type: 'news' });
+    const totalESG = await db.collection('posts').countDocuments({ type: 'esg' });
+
+    // 최근 30일 동안의 뉴스 및 ESG 포스트 수 조회
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentNews = await db.collection('posts').countDocuments({
+      type: 'news',
+      createdAt: { $gte: thirtyDaysAgo }
+    });
+
+    const recentESG = await db.collection('posts').countDocuments({
+      type: 'esg',
+      createdAt: { $gte: thirtyDaysAgo }
+    });
+
+    // 조회수 및 좋아요 수 통계
+    const newsStats = await db.collection('posts').aggregate([
+      { $match: { type: 'news' } },
+      { $group: {
+        _id: null,
+        totalViews: { $sum: '$views' },
+        totalLikes: { $sum: '$likes' }
+      }}
+    ]).toArray();
+
+    const esgStats = await db.collection('posts').aggregate([
+      { $match: { type: 'esg' } },
+      { $group: {
+        _id: null,
+        totalViews: { $sum: '$views' },
+        totalLikes: { $sum: '$likes' }
+      }}
+    ]).toArray();
+
+    // 최근 게시물 5개 조회
+    const recentPosts = await db.collection('posts')
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .project({
+        title: 1,
+        type: 1,
+        category: 1,
+        publishDate: 1,
+        views: 1,
+        likes: 1,
+        createdAt: 1
+      })
+      .toArray();
+
+    // 카테고리별 통계
+    const newsCategories = await db.collection('posts').aggregate([
+      { $match: { type: 'news' } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]).toArray();
+
+    const esgCategories = await db.collection('posts').aggregate([
+      { $match: { type: 'esg' } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]).toArray();
+
+    return NextResponse.json({
+      stats: {
+        totalNews,
+        totalESG,
+        recentNews,
+        recentESG,
+        totalNewsViews: newsStats[0]?.totalViews || 0,
+        totalNewsLikes: newsStats[0]?.totalLikes || 0,
+        totalESGViews: esgStats[0]?.totalViews || 0,
+        totalESGLikes: esgStats[0]?.totalLikes || 0
+      },
+      recentPosts: recentPosts.map(post => ({
+        _id: post._id,
+        title: post.title,
+        type: post.type,
+        category: post.category,
+        publishDate: post.createdAt,
+        views: post.views,
+        likes: post.likes
+      })),
+      categories: {
+        news: newsCategories,
+        esg: esgCategories
+      }
+    });
+  } catch (error) {
+    console.error('대시보드 데이터 조회 오류:', error);
+    return NextResponse.json(
+      { error: '대시보드 데이터를 가져오는데 실패했습니다.' },
+      { status: 500 }
+    );
+  }
+}
+
+// 데이터 매핑 함수들
+const mapNewsPost = (post: Document) => ({
+  id: post._id,
+  title: post.title?.ko || '',
+  slug: post.slug || '',
+  createdAt: post.createdAt || new Date(),
+  viewCount: post.viewCount || 0
+});
+
+const mapESGPost = (post: Document) => ({
+  id: post._id,
+  title: post.title?.ko || '',
+  category: post.category || '',
+  createdAt: post.createdAt || new Date(),
+  viewCount: post.viewCount || 0
+});
+
+const mapUser = (user: Document) => ({
+  id: user._id,
+  name: user.name ? `${user.name.first} ${user.name.last}` : '',
+  username: user.username || '',
+  roles: user.roles || [],
+  lastLogin: user.lastLogin || null
+});

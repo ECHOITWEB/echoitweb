@@ -53,3 +53,11 @@ export function formatRelativeTime(dateString: string, locale: string = 'en-US')
   // For older dates, show formatted date
   return formatDate(dateString, locale);
 }
+
+export function generateSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^가-힣a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}

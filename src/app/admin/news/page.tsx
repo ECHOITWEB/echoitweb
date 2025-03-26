@@ -7,6 +7,8 @@ import { getAllNewsPosts, deleteNewsPost, NewsPost } from '@/lib/models/news-pos
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { PlusCircle, Edit, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Switch } from "@/components/ui/switch"
+import { toast } from "@/components/ui/use-toast"
 
 export default function AdminNewsPage() {
   const [posts, setPosts] = useState<NewsPost[]>([]);
@@ -38,6 +40,35 @@ export default function AdminNewsPage() {
       }
     }
   };
+
+  const handleMainVisibilityChange = async (id: string, isVisible: boolean) => {
+    try {
+      await fetch(`/api/news/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ showOnHomepage: isVisible }),
+      })
+      
+      // 상태 업데이트
+      setPosts(posts.map(item => 
+        item.id === id ? { ...item, showOnHomepage: isVisible } : item
+      ))
+      
+      toast({
+        title: '업데이트 완료',
+        description: `메인 노출 상태가 ${isVisible ? '활성화' : '비활성화'}되었습니다.`,
+      })
+    } catch (error) {
+      console.error('메인 노출 상태 업데이트 실패:', error)
+      toast({
+        title: '오류 발생',
+        description: '메인 노출 상태 업데이트에 실패했습니다.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   return (
     <div className="space-y-6">

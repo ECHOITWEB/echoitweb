@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { LanguageProvider } from '@/context/language-context';
 import { AuthProvider } from '@/context/auth-context';
 import { getSiteSettings } from '@/lib/models/site-settings';
+import { Toaster } from '@/components/ui/toaster';
 
 // Get the site settings for metadata
 const siteSettings = getSiteSettings();
@@ -56,6 +57,7 @@ export default function RootLayout({
             <MainLayout>{children}</MainLayout>
           </LanguageProvider>
         </AuthProvider>
+        <Toaster />
       </body>
     </html>
   );

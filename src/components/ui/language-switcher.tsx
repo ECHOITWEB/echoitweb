@@ -3,60 +3,66 @@
 import React from 'react'
 import { useLanguage } from '@/context/language-context'
 import ReactCountryFlag from 'react-country-flag'
-import { Button } from './button'
-import { translateText } from '@/lib/utils/translation'
+import { cn } from '@/lib/utils'
 
 interface LanguageSwitcherProps {
-  iconStyle?: boolean;
-  onLanguageChange?: (lang: 'ko' | 'en') => void;
+  iconStyle?: boolean
+  className?: string
 }
 
-export function LanguageSwitcher({ iconStyle = false, onLanguageChange }: LanguageSwitcherProps) {
+export function LanguageSwitcher({ iconStyle = false, className }: LanguageSwitcherProps) {
   const { language, setLanguage } = useLanguage()
 
-  const handleLanguageChange = async (newLang: 'ko' | 'en') => {
-    setLanguage(newLang)
-    if (onLanguageChange) {
-      onLanguageChange(newLang)
-    }
-  }
-
   return (
-    <div className="flex items-center space-x-2">
-      <Button
-        variant={language === 'ko' ? 'default' : 'ghost'}
-        size="sm"
-        onClick={() => handleLanguageChange('ko')}
-        className="flex items-center space-x-1"
+    <div className={cn("flex items-center space-x-2", className)}>
+      <button
+        onClick={() => setLanguage('ko')}
+        className={cn(
+          "flex items-center space-x-1 px-2 py-1 rounded transition-colors",
+          language === 'ko' 
+            ? "bg-echoit-primary/10 text-echoit-primary" 
+            : "hover:bg-gray-100"
+        )}
+        aria-label="한국어로 전환"
       >
         <ReactCountryFlag
           countryCode="KR"
           svg
           style={{
-            width: '1.2em',
-            height: '1.2em',
+            width: '1.25em',
+            height: '1.25em',
           }}
-          title="South Korea"
+          className={cn(
+            "rounded-sm transition-opacity",
+            language !== 'ko' && "opacity-50"
+          )}
         />
         {!iconStyle && <span>한국어</span>}
-      </Button>
-      <Button
-        variant={language === 'en' ? 'default' : 'ghost'}
-        size="sm"
-        onClick={() => handleLanguageChange('en')}
-        className="flex items-center space-x-1"
+      </button>
+      <button
+        onClick={() => setLanguage('en')}
+        className={cn(
+          "flex items-center space-x-1 px-2 py-1 rounded transition-colors",
+          language === 'en' 
+            ? "bg-echoit-primary/10 text-echoit-primary" 
+            : "hover:bg-gray-100"
+        )}
+        aria-label="Switch to English"
       >
         <ReactCountryFlag
           countryCode="US"
           svg
           style={{
-            width: '1.2em',
-            height: '1.2em',
+            width: '1.25em',
+            height: '1.25em',
           }}
-          title="United States"
+          className={cn(
+            "rounded-sm transition-opacity",
+            language !== 'en' && "opacity-50"
+          )}
         />
         {!iconStyle && <span>English</span>}
-      </Button>
+      </button>
     </div>
   )
 }

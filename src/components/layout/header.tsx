@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, ChevronDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { usePathname } from 'next/navigation'
@@ -72,122 +72,135 @@ export function Header({ transparent = false, className }: HeaderProps) {
   }
 
   return (
-    <header
-      className={cn(
-        'fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16',
-        transparent ? 'bg-transparent' : 'bg-white/80 backdrop-blur-sm',
-        className
-      )}
-    >
-      <Link href="/" className="flex items-center">
-        <Image
-          src="/images/logo.svg"
-          alt="에코잇 로고"
-          width={120}
-          height={32}
-          className="h-8 w-auto"
-          priority
-        />
-      </Link>
+    <>
+      <div className="h-16" /> {/* 헤더 높이만큼 여백 추가 */}
+      <header
+        className={cn(
+          'fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16',
+          transparent ? 'bg-transparent' : 'bg-white/80 backdrop-blur-sm border-b border-gray-200',
+          className
+        )}
+      >
+        <Link href="/" className="flex items-center">
+          <Image
+            src="/images/logo.svg"
+            alt="에코잇 로고"
+            width={120}
+            height={32}
+            className="h-8 w-auto"
+            priority
+          />
+        </Link>
 
-      <div className="flex items-center space-x-4 sm:space-x-6">
-        <nav className="hidden sm:flex items-center space-x-6">
-          <Link
-            href="/about"
-            className="text-sm font-medium text-gray-700 hover:text-echoit-primary transition-colors"
-          >
-            {language === 'ko' ? '회사소개' : 'About'}
-          </Link>
-          <Link
-            href="/news"
-            className="text-sm font-medium text-gray-700 hover:text-echoit-primary transition-colors"
-          >
-            {language === 'ko' ? '뉴스' : 'News'}
-          </Link>
-          <Link
-            href="/esg"
-            className="text-sm font-medium text-gray-700 hover:text-echoit-primary transition-colors"
-          >
-            ESG
-          </Link>
-          <Link
-            href="/contact"
-            className="text-sm font-medium text-gray-700 hover:text-echoit-primary transition-colors"
-          >
-            {language === 'ko' ? '문의하기' : 'Contact'}
-          </Link>
+        {/* Desktop Navigation */}
+        <nav className="hidden lg:flex items-center space-x-8">
+          {menuItems.map((item) => (
+            <div key={item.href} className="relative group">
+              <Link
+                href={item.href}
+                className="flex items-center text-gray-700 hover:text-echoit-primary transition-colors py-2"
+              >
+                <span className="text-sm font-medium">{item.label}</span>
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Link>
+              {item.submenu && (
+                <div className="absolute top-full left-0 w-48 bg-white shadow-lg rounded-md py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                  {item.submenu.map((subItem) => (
+                    <Link
+                      key={subItem.href}
+                      href={subItem.href}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-echoit-primary"
+                    >
+                      {subItem.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </nav>
-        <LanguageSwitcher iconStyle />
-      </div>
 
-      {/* Mobile Navigation */}
-      {!isAdminPage && (
-        <div
-          className={cn(
-            "fixed inset-0 z-40 bg-white w-full transform transition-transform",
-            mobileMenuOpen ? "translate-x-0" : "translate-x-full"
-          )}
-        >
-          <div className="flex items-center justify-between h-16 px-4 border-b">
-            <Link href="/" className="flex items-center">
-              <Image
-                src="https://ext.same-assets.com/1397033195/831049508.png"
-                alt="ECHOIT"
-                width={120}
-                height={30}
-                className="h-8 w-auto"
-              />
-            </Link>
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-2 text-echoit-text"
-            >
-              <X size={24} />
-            </button>
-          </div>
+        <div className="flex items-center space-x-4">
+          <LanguageSwitcher />
+          {/* Mobile Menu Button */}
+          <button
+            type="button"
+            className="lg:hidden p-2 text-gray-600"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
 
-          <nav className="px-4 py-6 overflow-y-auto">
-            {menuItems.map((item) => (
-              <div key={item.label} className="mb-2">
-                <div
-                  className="flex items-center justify-between py-2 border-b border-gray-100"
-                  onClick={() => toggleSubmenu(item.label)}
-                >
-                  <Link
-                    href={item.href}
-                    className="text-echoit-text hover:text-echoit-primary font-medium"
-                    onClick={(e) => e.stopPropagation()}
+        {/* Mobile Navigation */}
+        {!isAdminPage && (
+          <div
+            className={cn(
+              "fixed inset-0 z-40 bg-white w-full transform transition-transform lg:hidden",
+              mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+            )}
+          >
+            <div className="flex items-center justify-between h-16 px-4 border-b">
+              <Link href="/" className="flex items-center">
+                <Image
+                  src="/images/logo.svg"
+                  alt="에코잇 로고"
+                  width={120}
+                  height={32}
+                  className="h-8 w-auto"
+                />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2 text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <nav className="px-4 py-6 overflow-y-auto">
+              {menuItems.map((item) => (
+                <div key={item.href} className="mb-4">
+                  <div
+                    className="flex items-center justify-between py-2 border-b border-gray-100"
+                    onClick={() => toggleSubmenu(item.label)}
                   >
-                    {item.label}
-                  </Link>
-                  {item.submenu && (
-                    <div className="text-echoit-text">
-                      {activeSubmenu === item.label ? '-' : '+'}
+                    <Link
+                      href={item.href}
+                      className="text-gray-800 hover:text-echoit-primary font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {item.label}
+                    </Link>
+                    {item.submenu && (
+                      <ChevronDown className={cn(
+                        "w-5 h-5 transition-transform",
+                        activeSubmenu === item.label ? "rotate-180" : ""
+                      )} />
+                    )}
+                  </div>
+
+                  {item.submenu && activeSubmenu === item.label && (
+                    <div className="pl-4 py-2 space-y-2">
+                      {item.submenu.map((subItem) => (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          className="block py-2 text-sm text-gray-600 hover:text-echoit-primary"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          {subItem.label}
+                        </Link>
+                      ))}
                     </div>
                   )}
                 </div>
-
-                {/* Mobile submenu */}
-                {item.submenu && activeSubmenu === item.label && (
-                  <div className="pl-4 py-2 space-y-2">
-                    {item.submenu.map((subItem) => (
-                      <Link
-                        key={subItem.label}
-                        href={subItem.href}
-                        className="block py-2 text-sm text-echoit-text hover:text-echoit-primary"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        {subItem.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </nav>
-        </div>
-      )}
-    </header>
+              ))}
+            </nav>
+          </div>
+        )}
+      </header>
+    </>
   )
 }

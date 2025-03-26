@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAccessToken, JWTPayload } from './jwt';
 import { UserRole } from '../db/models';
+import { getToken } from 'next-auth/jwt';
+import { User, IUser } from '@/lib/db/models/User';
+import { connectToDatabase } from '@/lib/db/connect';
 
 // 인증된 요청을 위한 확장 인터페이스
 export interface AuthenticatedRequest extends NextRequest {
@@ -99,8 +102,23 @@ export async function requireAdmin(
  * @param req 요청 객체
  * @returns 응답 객체 또는 undefined
  */
-export async function requireEditor(
-  req: AuthenticatedRequest
-): Promise<NextResponse | undefined> {
-  return requireRole(req, [UserRole.ADMIN, UserRole.EDITOR]);
+export async function requireEditor(req: NextRequest): Promise<IUser | null> {
+  try {
+    const token = await getToken({ req });
+    if (!token) {
+      return null;
+    }
+
+    await connectToDatabase();
+    const user = await User.findById(token.sub);
+
+    if (!user || !user.roles.includes('editor')) {
+      return null;
+    }
+
+    return user;
+  } catch (error) {
+    console.error('권한 체크 중 오류:', error);
+    return null;
+  }
 }

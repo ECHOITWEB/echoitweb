@@ -6,32 +6,60 @@ import { getSession } from '../auth/session';
 // 사용자 역할 타입
 type UserRole = 'admin' | 'editor' | 'viewer';
 
-// 대시보드 데이터 인터페이스
+interface DashboardStats {
+  totalNewsViews: number;
+  totalESGViews: number;
+  recentNewsCount: number;
+  recentESGCount: number;
+  newsPostCount: number;
+  esgPostCount: number;
+}
+
+interface RecentPost {
+  _id: string;
+  title: string;
+  category: string;
+  publishDate: string;
+}
+
 export interface DashboardData {
+  serverTime: string;
   summary: {
-    totalUsers: number;
     totalNews: number;
+    recentNews: number;
     totalESG: number;
-    totalPosts: number;
-    postsThisMonth: number;
-    usersByRole: {
-      admin: number;
-      editor: number;
-      viewer: number;
-    };
+    recentESG: number;
+    totalViews: number;
+    totalLikes: number;
   };
   recentActivity: {
-    news: NewsItem[];
-    esg: ESGItem[];
-    logins: UserLoginItem[];
-  };
+    timestamp: string;
+    action: string;
+    details: string;
+    type: string;
+  }[];
   analytics: {
-    topViewedNews: NewsViewItem[];
-    topViewedESG: ESGViewItem[];
-    esgCategoryDistribution: CategoryDistItem[];
-    hourlyViews: HourlyViewItem[];
+    views: {
+      date: string;
+      count: number;
+    }[];
+    likes: {
+      date: string;
+      count: number;
+    }[];
   };
-  serverTime: string;
+  stats: DashboardStats;
+  recentPosts: RecentPost[];
+  categories: {
+    news: Array<{ _id: string; count: number }>;
+    esg: Array<{ _id: string; count: number }>;
+  };
+}
+
+interface UseRealtimeDashboardReturn {
+  data: DashboardData | null;
+  error: Error | null;
+  isLoading: boolean;
 }
 
 // 뉴스 아이템 인터페이스
@@ -90,129 +118,78 @@ interface UserLoginItem {
   lastLogin: string;
 }
 
-/**
- * 실시간 대시보드 데이터를 SSE로 구독하는 훅
- * @returns 실시간 대시보드 데이터와 로딩/오류 상태
- */
-export function useRealtimeDashboard() {
+export function useRealtimeDashboard(): UseRealtimeDashboardReturn {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [eventSource, setEventSource] = useState<EventSource | null>(null);
-  const [connected, setConnected] = useState<boolean>(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // 이전 연결이 있으면 정리
-    if (eventSource) {
-      eventSource.close();
-    }
+    let eventSource: EventSource | null = null;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-    // EventSource 지원 확인
-    if (typeof window === 'undefined' || !window.EventSource) {
-      setError('이 브라우저는 서버 사이드 이벤트를 지원하지 않습니다.');
-      setLoading(false);
-      return;
-    }
-
-    // 인증 토큰 가져오기
-    const session = getSession();
-    if (!session?.accessToken) {
-      setError('인증 토큰이 없습니다. 로그인이 필요합니다.');
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setConnected(false);
-
-    try {
-      // SSE 연결 설정 (인증 헤더 포함)
-      const encodedToken = encodeURIComponent(session.accessToken);
-      // URL에 토큰을 직접 포함하지 않고 보안적으로 안전한 방법 사용
-      const sseUrl = `/api/dashboard/realtime`;
-
-      const source = new EventSource(sseUrl);
-
-      // 별도 fetch 요청으로 인증 토큰 전송
-      fetch(sseUrl, {
-        headers: {
-          'Authorization': `Bearer ${session.accessToken}`
+    const connectSSE = () => {
+      try {
+        if (eventSource) {
+          eventSource.close();
         }
-      }).catch((error) => {
-        console.error('인증 요청 오류:', error);
-      });
 
-      // 연결 이벤트 처리
-      source.addEventListener('connected', (event) => {
-        setConnected(true);
-        setLoading(false);
-        console.log('SSE 연결됨:', JSON.parse(event.data));
-      });
+        eventSource = new EventSource('/api/dashboard/realtime');
 
-      // 대시보드 업데이트 이벤트 처리
-      source.addEventListener('dashboard_update', (event) => {
-        try {
-          const parsedData = JSON.parse(event.data);
-          setData(parsedData);
-          setLoading(false);
-        } catch (err) {
-          console.error('SSE 메시지 처리 오류:', err);
-          setError('데이터 처리 중 오류가 발생했습니다.');
-        }
-      });
+        eventSource.onmessage = (event) => {
+          try {
+            const newData = JSON.parse(event.data);
+            setData(newData);
+            setIsLoading(false);
+            setError(null);
+            retryCount = 0;
+          } catch (err) {
+            console.error('데이터 파싱 오류:', err);
+            setError(new Error('데이터 형식이 올바르지 않습니다.'));
+          }
+        };
 
-      // 오류 이벤트 처리
-      source.addEventListener('error', (event) => {
-        try {
-          const errorData = JSON.parse((event as MessageEvent).data);
-          setError(errorData.message || '실시간 데이터 연결 중 오류가 발생했습니다.');
-        } catch {
-          setError('실시간 데이터 연결 중 오류가 발생했습니다.');
-        }
-        setLoading(false);
-      });
+        eventSource.onerror = (err) => {
+          console.error('SSE 연결 오류:', err);
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
 
-      // 기본 오류 핸들러
-      source.onerror = (err) => {
-        console.error('SSE 연결 오류:', err);
-        if (source.readyState === EventSource.CLOSED) {
-          source.close();
-          setError('연결이 종료되었습니다. 재연결을 시도해 주세요.');
-          setConnected(false);
-        }
-        setLoading(false);
-      };
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(connectSSE, 3000);
+          } else {
+            setError(new Error('서버와의 연결이 끊어졌습니다. 페이지를 새로고침해주세요.'));
+            setIsLoading(false);
+          }
+        };
 
-      setEventSource(source);
+        eventSource.addEventListener('connected', () => {
+          console.log('SSE 연결됨');
+          setError(null);
+          retryCount = 0;
+        });
 
-      // 정리 함수
-      return () => {
-        source.close();
-      };
-    } catch (err) {
-      console.error('SSE 설정 오류:', err);
-      setError('실시간 데이터 연결을 설정하는 중 오류가 발생했습니다.');
-      setLoading(false);
-    }
+      } catch (err) {
+        console.error('SSE 초기화 오류:', err);
+        setError(new Error('실시간 데이터 연결에 실패했습니다.'));
+        setIsLoading(false);
+      }
+    };
+
+    connectSSE();
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
   }, []);
 
-  // 재연결 함수
-  const reconnect = () => {
-    if (eventSource) {
-      eventSource.close();
-      setEventSource(null);
-    }
-
-    setLoading(true);
-    setError(null);
-    setConnected(false);
-
-    // effect가 다시 실행되도록 상태 변경
-    setTimeout(() => {
-      setLoading(true);
-    }, 100);
+  return {
+    data,
+    error: error ? new Error(error.message) : null,
+    isLoading
   };
-
-  return { data, loading, error, connected, reconnect };
 }

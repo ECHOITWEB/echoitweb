@@ -1,113 +1,84 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
-import { IUser } from './User';
 
-// 다국어 콘텐츠를 위한 인터페이스
-interface IMultiLingual {
-  ko: string;
-  en: string;
+export enum NewsCategory {
+  COMPANY = 'company',
+  PRODUCT = 'product',
+  AWARD = 'award',
+  MEDIA = 'media',
+  EVENT = 'event',
+  OTHER = 'other'
 }
 
-// 뉴스 게시물 문서 인터페이스
+export enum AuthorDepartment {
+  ESG = 'ESG 경영팀',
+  CSR = '사회공헌팀',
+  RND = '기술연구소',
+  HR = '인사팀',
+  ADMIN = '운영자',
+  CUSTOM = '직접 입력'
+}
+
+export interface IMultiLingual {
+  ko: string;
+  en?: string;
+}
+
 export interface INewsPost extends Document {
   title: IMultiLingual;
-  subtitle: IMultiLingual;
+  summary: IMultiLingual;
   content: IMultiLingual;
-  slug: string;
-  author: Types.ObjectId | IUser;
-  imageUrl: string;
-  category: string;
-  tags: string[];
+  category: NewsCategory;
+  author: {
+    department: AuthorDepartment;
+    name: string;
+  };
+  publishDate: Date;
+  imageSource?: string;
   viewCount: number;
   isPublished: boolean;
-  publishedAt: Date | null;
+  slug: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// 다국어 콘텐츠를 위한 스키마
-const multiLingualSchema = new Schema<IMultiLingual>({
+const multiLingualSchema = new Schema({
   ko: { type: String, required: true },
-  en: { type: String, required: true }
-}, { _id: false });
+  en: { type: String }
+});
 
-// 뉴스 게시물 스키마
 const newsPostSchema = new Schema<INewsPost>(
   {
-    title: {
-      type: multiLingualSchema,
-      required: true,
-      validate: {
-        validator: function(v: IMultiLingual) {
-          return v.ko.length > 0 && v.en.length > 0;
-        },
-        message: '제목은 한국어와 영어 모두 입력해야 합니다.'
-      }
-    },
-    subtitle: {
-      type: multiLingualSchema,
-      required: true
-    },
-    content: {
-      type: multiLingualSchema,
-      required: true
-    },
-    slug: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      lowercase: true,
-      index: true
-    },
-    author: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    imageUrl: {
-      type: String,
-      default: ''
-    },
+    title: { type: multiLingualSchema, required: true },
+    summary: { type: multiLingualSchema, required: true },
+    content: { type: multiLingualSchema, required: true },
     category: {
       type: String,
-      required: true,
-      index: true
+      enum: Object.values(NewsCategory),
+      required: true
     },
-    tags: {
-      type: [String],
-      default: []
+    author: {
+      department: {
+        type: String,
+        enum: Object.values(AuthorDepartment),
+        required: true
+      },
+      name: { type: String, required: true }
     },
-    viewCount: {
-      type: Number,
-      default: 0
-    },
-    isPublished: {
-      type: Boolean,
-      default: false
-    },
-    publishedAt: {
-      type: Date,
-      default: null
-    }
+    publishDate: { type: Date, required: true },
+    imageSource: { type: String },
+    viewCount: { type: Number, default: 0 },
+    isPublished: { type: Boolean, default: false },
+    slug: { type: String, required: true, unique: true }
   },
   {
     timestamps: true
   }
 );
 
-// 게시물 제목과 슬러그로 인덱스 생성
+// 인덱스 생성
 newsPostSchema.index({ 'title.ko': 1 });
-newsPostSchema.index({ 'title.en': 1 });
+newsPostSchema.index({ category: 1 });
 
-// 게시물 게시 시 publishedAt 자동 설정
-newsPostSchema.pre('save', function(next) {
-  if (this.isModified('isPublished') && this.isPublished && !this.publishedAt) {
-    this.publishedAt = new Date();
-  }
-  next();
-});
-
-// 모델 생성 및 내보내기
 export const NewsPost = mongoose.models.NewsPost || mongoose.model<INewsPost>('NewsPost', newsPostSchema);
 
 export default NewsPost;

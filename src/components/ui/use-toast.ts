@@ -19,4 +19,10 @@ export function useToast() {
   }, [])
 
   return { toast, toasts }
-} 
+}
+
+export { type Toast }
+export const toast = ({ title, description, variant = 'default' }: Toast) => {
+  // 임시로 console.log로 대체
+  console.log('Toast:', { title, description, variant });
+}; 

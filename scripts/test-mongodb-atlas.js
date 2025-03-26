@@ -7,9 +7,14 @@
  * 3. 터미널에서 `node scripts/test-mongodb-atlas.js`를 실행합니다.
  */
 
-const path = require('path');
-const fs = require('fs');
-const mongoose = require('mongoose');
+import path from 'path';
+import fs from 'fs';
+import mongoose from 'mongoose';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // .env.local 파일 직접 읽기
 function loadEnv() {
@@ -73,6 +78,12 @@ if (!MONGODB_URI.includes('/echoit?') && !MONGODB_URI.includes('/echoit/')) {
 const options = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  bufferCommands: true,
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  family: 4,
+  retryWrites: true
 };
 
 async function testConnection() {
