@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     await connectToDatabase();
 
     const data = await req.json();
-    const { title, summary, content, category, author, publishDate, imageSource } = data;
+    const { title, summary, content, category, author, publishDate, imageSource, tags } = data;
 
     // 필수 필드 체크
     if (!title || !content || !category || !author) {
@@ -44,9 +44,10 @@ export async function POST(req: NextRequest) {
       summary,
       content,
       category,
-      author,
+      author: user._id,
       publishDate: publishDate || new Date(),
       imageSource,
+      tags: tags || [],
       isPublished: true,
       createdBy: user._id
     });

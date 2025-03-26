@@ -17,10 +17,7 @@ interface IFormData {
   summary: string;
   content: string;
   category: string;
-  author: {
-    department: AuthorDepartment;
-    name: string;
-  };
+  author: string;
   publishDate: Date;
   imageSource: string;
 }
@@ -41,10 +38,7 @@ export default function CreateESGPage() {
     summary: '',
     content: '',
     category: 'ESG',
-    author: {
-      department: AuthorDepartment.ESG,
-      name: ''
-    },
+    author: '',
     publishDate: new Date(),
     imageSource: ''
   });
@@ -58,7 +52,7 @@ export default function CreateESGPage() {
     if (!formData.content) {
       newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
     }
-    if (!formData.author.name) {
+    if (!formData.author) {
       newErrors.push({ field: 'author', message: '작성자를 입력해주세요.' });
     }
     if (!formData.imageSource) {
@@ -200,11 +194,8 @@ export default function CreateESGPage() {
           <label className="text-sm font-medium">작성자</label>
           <AuthorSelect
             value={formData.author}
-            onChange={(author) => setFormData({ ...formData, author })}
+            onChange={(authorName) => setFormData({ ...formData, author: authorName })}
           />
-          {errors.some(e => e.field === 'author') && (
-            <p className="text-sm text-red-500 mt-1">작성자를 입력해주세요.</p>
-          )}
         </div>
 
         <div className="space-y-2">

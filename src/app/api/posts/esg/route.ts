@@ -4,36 +4,58 @@ import { authOptions } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { ESGPost } from '@/lib/db/models/ESGPost';
 import { translate } from '@/lib/translate';
+import { requireEditor } from '@/lib/auth/middleware';
+import { createSlug } from '@/lib/utils/slug';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    // 에디터 권한 체크
+    const user = await requireEditor(req);
+    if (!user) {
+      return NextResponse.json(
+        { error: '권한이 없습니다.' },
+        { status: 403 }
+      );
     }
 
     await connectDB();
     const data = await req.json();
+    const { title, summary, content, category, publishDate, imageSource } = data;
 
-    // 자동 번역 처리
-    if (!data.title.en) {
-      data.title.en = await translate(data.title.ko, 'ko', 'en');
+    // 필수 필드 체크
+    if (!title || !content || !category) {
+      return NextResponse.json(
+        { error: '필수 필드가 누락되었습니다.' },
+        { status: 400 }
+      );
     }
-    if (!data.summary.en) {
-      data.summary.en = await translate(data.summary.ko, 'ko', 'en');
-    }
-    if (!data.content.en) {
-      data.content.en = await translate(data.content.ko, 'ko', 'en');
-    }
+
+    // 슬러그 생성
+    const slug = await createSlug(title);
 
     const post = await ESGPost.create({
-      ...data,
-      author: session.user.id
+      title,
+      slug,
+      summary,
+      content,
+      category,
+      author: user._id,
+      publishDate: publishDate || new Date(),
+      imageSource,
+      isPublished: true,
+      createdBy: user._id
     });
 
-    return NextResponse.json(post);
+    return NextResponse.json({ 
+      message: 'ESG 포스트가 성공적으로 생성되었습니다.',
+      post 
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('ESG 포스트 생성 중 오류 발생:', error);
+    return NextResponse.json(
+      { error: 'ESG 포스트 생성 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
   }
 }
 

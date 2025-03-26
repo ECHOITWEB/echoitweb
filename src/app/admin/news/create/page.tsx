@@ -24,10 +24,7 @@ interface IFormData {
   summary: string;
   content: string;
   category: string;
-  author: {
-    department: AuthorDepartment;
-    name: string;
-  };
+  author: string;
   publishDate: Date;
   imageSource: string;
   tags: string[];
@@ -50,10 +47,7 @@ export default function CreateNewsPage() {
     summary: '',
     content: '',
     category: 'company',
-    author: {
-      department: AuthorDepartment.ADMIN,
-      name: ''
-    },
+    author: '',
     publishDate: new Date(),
     imageSource: '',
     tags: []
@@ -68,7 +62,7 @@ export default function CreateNewsPage() {
     if (!formData.content) {
       newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
     }
-    if (!formData.author.name) {
+    if (!formData.author) {
       newErrors.push({ field: 'author', message: '작성자를 입력해주세요.' });
     }
     if (!formData.imageSource) {
@@ -125,10 +119,10 @@ export default function CreateNewsPage() {
     }
   };
 
-  const handleAuthorChange = (authorData: { department: AuthorDepartment; name: string }) => {
+  const handleAuthorChange = (authorName: string) => {
     setFormData(prev => ({
       ...prev,
-      author: authorData
+      author: authorName
     }));
   };
 
