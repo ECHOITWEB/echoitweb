@@ -22,38 +22,33 @@ interface RecentPost {
   publishDate: string;
 }
 
+/**
+ * 대시보드 데이터 타입 정의
+ */
 export interface DashboardData {
-  serverTime: string;
-  summary: {
-    totalNews: number;
-    recentNews: number;
-    totalESG: number;
-    recentESG: number;
-    totalViews: number;
-    totalLikes: number;
+  timestamp: string;
+  totalStats: {
+    newsViews: number;
+    esgViews: number;
+    recentNewsViews: number;
+    recentESGViews: number;
   };
-  recentActivity: {
-    timestamp: string;
-    action: string;
-    details: string;
-    type: string;
+  recentNews: {
+    _id: string;
+    title: { ko: string; en?: string };
+    publishedAt: string;
+    viewCount: number;
+    category: string;
   }[];
-  analytics: {
-    views: {
-      date: string;
-      count: number;
-    }[];
-    likes: {
-      date: string;
-      count: number;
-    }[];
-  };
-  stats: DashboardStats;
-  recentPosts: RecentPost[];
-  categories: {
-    news: Array<{ _id: string; count: number }>;
-    esg: Array<{ _id: string; count: number }>;
-  };
+  recentESG: {
+    _id: string;
+    title: { ko: string; en?: string };
+    publishedAt: string;
+    viewCount: number;
+    esgType: string;
+  }[];
+  newsStats: { _id: string; count: number }[];
+  esgStats: { _id: string; count: number }[];
 }
 
 interface UseRealtimeDashboardReturn {
@@ -118,78 +113,89 @@ interface UserLoginItem {
   lastLogin: string;
 }
 
-export function useRealtimeDashboard(): UseRealtimeDashboardReturn {
+/**
+ * 대시보드 데이터를 실시간으로 가져오는 커스텀 훅
+ */
+export default function useRealtimeDashboard(accessToken: string | null) {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [eventSource, setEventSource] = useState<EventSource | null>(null);
 
   useEffect(() => {
-    let eventSource: EventSource | null = null;
-    let retryCount = 0;
-    const maxRetries = 3;
+    let mounted = true;
+    setIsLoading(true);
 
-    const connectSSE = () => {
-      try {
-        if (eventSource) {
-          eventSource.close();
-        }
-
-        eventSource = new EventSource('/api/dashboard/realtime');
-
-        eventSource.onmessage = (event) => {
-          try {
-            const newData = JSON.parse(event.data);
-            setData(newData);
-            setIsLoading(false);
-            setError(null);
-            retryCount = 0;
-          } catch (err) {
-            console.error('데이터 파싱 오류:', err);
-            setError(new Error('데이터 형식이 올바르지 않습니다.'));
-          }
-        };
-
-        eventSource.onerror = (err) => {
-          console.error('SSE 연결 오류:', err);
-          if (eventSource) {
-            eventSource.close();
-            eventSource = null;
-          }
-
-          if (retryCount < maxRetries) {
-            retryCount++;
-            setTimeout(connectSSE, 3000);
-          } else {
-            setError(new Error('서버와의 연결이 끊어졌습니다. 페이지를 새로고침해주세요.'));
-            setIsLoading(false);
-          }
-        };
-
-        eventSource.addEventListener('connected', () => {
-          console.log('SSE 연결됨');
-          setError(null);
-          retryCount = 0;
-        });
-
-      } catch (err) {
-        console.error('SSE 초기화 오류:', err);
-        setError(new Error('실시간 데이터 연결에 실패했습니다.'));
+    // 토큰이 없으면 연결 시도하지 않음
+    if (!accessToken) {
+      if (mounted) {
+        setError('인증 토큰이 없습니다');
         setIsLoading(false);
       }
-    };
+      return;
+    }
 
-    connectSSE();
+    // EventSource 연결 생성
+    const sse = new EventSource(`/api/dashboard/realtime`, {
+      withCredentials: true,
+    });
+    
+    if (mounted) {
+      setEventSource(sse);
+    }
 
-    return () => {
-      if (eventSource) {
-        eventSource.close();
+    // 연결 이벤트 처리
+    sse.onopen = () => {
+      if (mounted) {
+        console.log('대시보드 실시간 연결 성공');
+        setError(null);
       }
     };
-  }, []);
 
-  return {
-    data,
-    error: error ? new Error(error.message) : null,
-    isLoading
+    // 메시지 이벤트 처리
+    sse.onmessage = (event) => {
+      if (mounted) {
+        try {
+          const newData = JSON.parse(event.data);
+          console.log('대시보드 데이터 업데이트:', newData);
+          setData(newData);
+          setIsLoading(false);
+        } catch (err) {
+          console.error('대시보드 데이터 파싱 오류:', err);
+          setError('데이터 형식 오류');
+        }
+      }
+    };
+
+    // 오류 이벤트 처리
+    sse.onerror = (err) => {
+      console.error('대시보드 연결 오류:', err);
+      if (mounted) {
+        setError('서버 연결 오류');
+        setIsLoading(false);
+        sse.close();
+      }
+    };
+
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      mounted = false;
+      if (sse) {
+        console.log('대시보드 연결 종료');
+        sse.close();
+      }
+    };
+  }, [accessToken]);
+
+  // 수동 재연결 함수
+  const reconnect = () => {
+    if (eventSource) {
+      eventSource.close();
+      setEventSource(null);
+    }
+    setIsLoading(true);
+    setError(null);
   };
+
+  return { data, error, isLoading, reconnect };
 }
