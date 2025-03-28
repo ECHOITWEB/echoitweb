@@ -1,6 +1,6 @@
 # MongoDB Atlas 시각적 가이드
 
-이 문서는 Echo IT 프로젝트를 위한 MongoDB Atlas 설정의 주요 단계에 대한 시각적 가이드를 제공합니다.
+이 문서는 ECHOIT 프로젝트를 위한 MongoDB Atlas 설정의 주요 단계에 대한 시각적 가이드를 제공합니다.
 
 ## 1. MongoDB Atlas 대시보드
 

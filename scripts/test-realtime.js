@@ -41,7 +41,7 @@ const newsPostSchema = new mongoose.Schema(
     },
     author: {
       type: String,
-      default: 'Echo IT'
+      default: 'ECHOIT'
     }
   },
   {
@@ -112,29 +112,29 @@ async function createTestData() {
         {
           title: 'AI 비즈니스 인텔리전스 솔루션 출시',
           slug: 'ai-business-intelligence-solution',
-          content: '에코잇은 최신 AI 기술을 활용한 비즈니스 인텔리전스 솔루션을 출시했습니다...',
+          content: '에코아이티은 최신 AI 기술을 활용한 비즈니스 인텔리전스 솔루션을 출시했습니다...',
           excerpt: '빅데이터 분석과 AI를 결합한 혁신적인 비즈니스 인텔리전스 솔루션',
           coverImage: '/images/news/ai-solution.jpg',
           viewCount: Math.floor(Math.random() * 100),
-          author: 'Echo IT'
+          author: 'ECHOIT'
         },
         {
           title: '디지털 혁신상 2024 수상',
           slug: 'digital-innovation-award-2024',
-          content: '에코잇은 한국디지털협회가 주관하는 디지털 혁신상 2024를 수상했습니다...',
+          content: '에코아이티은 한국디지털협회가 주관하는 디지털 혁신상 2024를 수상했습니다...',
           excerpt: '디지털 트랜스포메이션 분야에서의 혁신적인 성과 인정받아',
           coverImage: '/images/news/award.jpg',
           viewCount: Math.floor(Math.random() * 100),
-          author: 'Echo IT'
+          author: 'ECHOIT'
         },
         {
           title: '신규 지사 오픈 소식',
           slug: 'new-branch-office-opening',
-          content: '에코잇은 부산 센텀시티에 신규 지사를 오픈했습니다...',
+          content: '에코아이티은 부산 센텀시티에 신규 지사를 오픈했습니다...',
           excerpt: '부산 센텀시티에 신규 지사 오픈으로 남부권 고객 서비스 강화',
           coverImage: '/images/news/new-office.jpg',
           viewCount: Math.floor(Math.random() * 100),
-          author: 'Echo IT'
+          author: 'ECHOIT'
         }
       ];
 
@@ -153,7 +153,7 @@ async function createTestData() {
         {
           title: '탄소중립 이니셔티브 발표',
           slug: 'carbon-neutrality-initiative',
-          content: '에코잇은 2030년까지 탄소중립을 달성하기 위한 이니셔티브를 발표했습니다...',
+          content: '에코아이티은 2030년까지 탄소중립을 달성하기 위한 이니셔티브를 발표했습니다...',
           excerpt: '2030년까지 탄소중립 달성을 위한 로드맵 공개',
           coverImage: '/images/esg/carbon.jpg',
           viewCount: Math.floor(Math.random() * 100),
@@ -162,7 +162,7 @@ async function createTestData() {
         {
           title: 'ESG 경영위원회 설립',
           slug: 'esg-management-committee',
-          content: '에코잇은 ESG 경영을 강화하기 위한 전담 위원회를 설립했습니다...',
+          content: '에코아이티은 ESG 경영을 강화하기 위한 전담 위원회를 설립했습니다...',
           excerpt: '지속가능한 비즈니스를 위한 ESG 경영위원회 설립',
           coverImage: '/images/esg/committee.jpg',
           viewCount: Math.floor(Math.random() * 100),

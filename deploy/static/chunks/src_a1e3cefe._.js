@@ -80,7 +80,7 @@ const translations = {
         'menu.contact': 'Contact Us',
         // Home page
         'hero.title': 'Together with You',
-        'hero.description': 'Echo IT provides Total IT services through the latest ICT technologies and expert groups. Future-oriented DX technology for customers, partnerships, and business growth.',
+        'hero.description': 'ECHOIT provides Total IT services through the latest ICT technologies and expert groups. Future-oriented DX technology for customers, partnerships, and business growth.',
         'hero.title2': 'All Technologies for Smart DX',
         'hero.description2': 'We provide the future of digital innovation powered by AI through SAP, AI/RPA, Low-Code, CRM & ITO.',
         'hero.scroll': 'SCROLL',
@@ -88,9 +88,9 @@ const translations = {
         'technologies.subtitle': 'We provide the future of digital innovation powered by AI through SAP, AI/RPA, Low-Code, CRM & ITO.',
         'technologies.more': 'More',
         'core.title': 'Core Values',
-        'core.subtitle': '"Creative thinking, strong execution" is the future of Echo IT. Echo IT values will grow as we continue to drive change, collaboration, innovation, knowledge management, and customer satisfaction.',
+        'core.subtitle': '"Creative thinking, strong execution" is the future of ECHOIT. ECHOIT values will grow as we continue to drive change, collaboration, innovation, knowledge management, and customer satisfaction.',
         'customers.title': 'Customers',
-        'customers.subtitle': 'Echo IT successfully provides implementation and maintenance services to customers in various fields such as major corporations, startups, and public institutions.',
+        'customers.subtitle': 'ECHOIT successfully provides implementation and maintenance services to customers in various fields such as major corporations, startups, and public institutions.',
         'contact.title': 'Contact Us',
         'contact.subtitle': 'Please fill out the form below and we will get back to you as soon as possible.',
         'contact.inquiry': 'Inquiry Type',
@@ -105,7 +105,7 @@ const translations = {
         'contact.phone': 'Phone',
         'contact.message': 'Message',
         'contact.submit': 'Submit',
-        'contact.privacy': '* Required fields must be filled in. Echo IT values your personal information and complies with the laws regarding promotion of information and protection of information. Your personal information will not be disclosed without your prior consent.',
+        'contact.privacy': '* Required fields must be filled in. ECHOIT values your personal information and complies with the laws regarding promotion of information and protection of information. Your personal information will not be disclosed without your prior consent.',
         // Footer
         'footer.sitemap': 'SITEMAP',
         'footer.newsletter': 'Newsletter',
@@ -116,7 +116,7 @@ const translations = {
         'footer.copyright': 'Copyright ⓒ Echo Information Technology Co., LTD All Right Reserved.',
         // Business page
         'business.title': 'Business',
-        'business.subtitle': 'Echo IT\'s business services provide various solutions for corporate digital transformation.',
+        'business.subtitle': 'ECHOIT\'s business services provide various solutions for corporate digital transformation.',
         'business.details': 'Details'
     },
     ko: {

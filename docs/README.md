@@ -1,6 +1,6 @@
-# Echo IT 웹사이트 클론 프로젝트
+# ECHOIT 웹사이트 클론 프로젝트
 
-서버 사이드 렌더링과 MongoDB Atlas 연동을 갖춘 Echo IT 기업 웹사이트 클론 프로젝트입니다.
+서버 사이드 렌더링과 MongoDB Atlas 연동을 갖춘 ECHOIT 기업 웹사이트 클론 프로젝트입니다.
 
 ## 기술 스택
 

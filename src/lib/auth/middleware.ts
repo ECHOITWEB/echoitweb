@@ -33,7 +33,18 @@ function extractTokenFromRequest(req: NextRequest): string | null {
 export async function authMiddleware(req: AuthenticatedRequest): Promise<NextResponse | undefined> {
   const token = extractTokenFromRequest(req);
 
+  console.log('인증 미들웨어 호출됨, 토큰 존재:', !!token);
+
   if (!token) {
+    // 개발 모드에서는 /api/users에 대한 POST 요청을 특별히 허용
+    if (process.env.NODE_ENV === 'development' && 
+        req.nextUrl && 
+        req.nextUrl.pathname === '/api/users' && 
+        req.method === 'POST') {
+      console.log('개발 모드에서 사용자 생성 요청은 인증 없이 허용');
+      return undefined;
+    }
+    
     return NextResponse.json(
       { success: false, message: '인증 토큰이 필요합니다.' },
       { status: 401 }
@@ -122,10 +133,12 @@ export async function requireEditor(req: NextRequest): Promise<IUser | null> {
     
     // 2. 데이터베이스에서 사용자 조회
     await connectToDatabase();
-    const user = await User.findById(payload.userId);
+    const userId = payload.userId || payload.id;
+    console.log('사용자 ID 추출:', userId);
+    const user = await User.findById(userId);
     
     if (!user) {
-      console.log('DB에서 사용자를 찾을 수 없음:', payload.userId);
+      console.log('DB에서 사용자를 찾을 수 없음:', userId);
       return null;
     }
     

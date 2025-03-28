@@ -307,7 +307,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$models$2f$site
 // Get the site settings for metadata
 const siteSettings = (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$models$2f$site$2d$settings$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getSiteSettings"])();
 const metadata = {
-    title: 'Echo IT - All Technologies for Smart DX',
+    title: 'ECHOIT - All Technologies for Smart DX',
     description: 'SAP, AI/RPA, Low-Code, CRM & ITO',
     icons: {
         icon: [
@@ -318,7 +318,7 @@ const metadata = {
         ]
     },
     openGraph: {
-        title: 'Echo IT - All Technologies for Smart DX',
+        title: 'ECHOIT - All Technologies for Smart DX',
         description: 'SAP, AI/RPA, Low-Code, CRM & ITO',
         images: [
             siteSettings.ogImageUrl

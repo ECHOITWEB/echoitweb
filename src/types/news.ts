@@ -2,9 +2,9 @@ export enum NewsCategory {
   COMPANY = 'company',
   PRODUCT = 'product',
   AWARD = 'award',
-  PARTNERSHIP = 'partnership',
-  NEWSLETTER = 'newsletter',
-  INVESTMENT = 'investment'
+  MEDIA = 'media',
+  EVENT = 'event',
+  OTHER = 'other'
 }
 
 export enum AuthorDepartment {
@@ -23,20 +23,26 @@ export interface IMultiLingual {
   en?: string;
 }
 
+export interface Author {
+  name: string;
+  department: AuthorDepartment;
+}
+
 export interface INewsPostClient {
+  _id?: string;
+  id?: string;
   title: IMultiLingual;
   summary: IMultiLingual;
   content: IMultiLingual;
   category: NewsCategory;
-  author: {
-    department: AuthorDepartment;
-    name: string;
-  };
-  publishDate: Date;
+  author?: Author;
+  publishDate: Date | string;
+  imageSource?: string;
   originalUrl?: string;
-  isMainFeatured: boolean;
-  scheduledPublishDate?: Date;
-  thumbnailUrl?: string;
   viewCount: number;
   isPublished: boolean;
+  slug: string;
+  date?: string; // 이전 형식 호환용
+  imageSrc?: string; // 이전 형식 호환용
+  excerpt?: IMultiLingual; // 이전 형식 호환용
 } 

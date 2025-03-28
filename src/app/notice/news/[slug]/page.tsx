@@ -1,5 +1,5 @@
 import React from 'react';
-import { getNewsPostBySlug, getAllNewsPosts } from '@/lib/models/news-posts';
+import { getNewsPostBySlug } from '@/lib/services/posts';
 import { notFound } from 'next/navigation';
 import NewsPostDetail from './NewsPostDetail';
 
@@ -10,18 +10,10 @@ interface NewsDetailPageProps {
   };
 }
 
-// Generate static paths for all news posts
-export async function generateStaticParams() {
-  const posts = getAllNewsPosts();
-  return posts.map(post => ({
-    slug: post.slug,
-  }));
-}
-
-// Server component
-export default function NewsDetailPage({ params }: NewsDetailPageProps) {
+// Server component with dynamic data fetching
+export default async function NewsDetailPage({ params }: NewsDetailPageProps) {
   const { slug } = params;
-  const post = getNewsPostBySlug(slug);
+  const post = await getNewsPostBySlug(slug);
 
   if (!post) {
     notFound();

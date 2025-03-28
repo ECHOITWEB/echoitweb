@@ -1,12 +1,5 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
-import { IUser } from './User';
-import { ESGCategory, AuthorDepartment } from '@/types/esg';
-
-// 다국어 콘텐츠를 위한 인터페이스
-interface IMultiLingual {
-  ko: string;
-  en?: string; // 영문은 선택사항 (자동 번역 사용)
-}
+import { ESGCategory, AuthorDepartment, IMultiLingual } from '@/types/esg';
 
 // ESG 게시물 문서 인터페이스
 export interface IESGPost extends Document {
@@ -126,7 +119,6 @@ const esgPostSchema = new Schema<IESGPost>(
     slug: {
       type: String,
       required: true,
-      unique: true
     },
     tags: {
       type: [String],
@@ -144,6 +136,8 @@ esgPostSchema.index({ category: 1, publishDate: -1 });
 esgPostSchema.index({ slug: 1 }, { unique: true });
 esgPostSchema.index({ tags: 1 }); // 태그 검색용 인덱스 추가
 
+// mongoose 객체 확인 후 등록 (SSR 및 클라이언트 측 렌더링 호환성)
 export const ESGPost = mongoose.models.ESGPost || mongoose.model<IESGPost>('ESGPost', esgPostSchema);
 
+// default export도 함께 제공하여 호환성 유지
 export default ESGPost;

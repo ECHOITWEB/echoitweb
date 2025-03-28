@@ -135,7 +135,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <span className="ml-3 text-lg font-semibold text-blue-600 dark:text-blue-400">Echo IT Admin</span>
+          <span className="ml-3 text-lg font-semibold text-blue-600 dark:text-blue-400">ECHOIT Admin</span>
         </div>
         <div className="flex items-center space-x-2">
           <button
@@ -166,7 +166,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             className="flex items-center p-2"
           >
             <ImageIcon className="w-5 h-5 mr-2 text-blue-500 dark:text-blue-400" />
-            <span className="text-xl font-bold text-blue-500 dark:text-blue-400">Echo IT Admin</span>
+            <span className="text-xl font-bold text-blue-500 dark:text-blue-400">ECHOIT Admin</span>
           </a>
           <button
             className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

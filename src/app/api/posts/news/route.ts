@@ -168,34 +168,127 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * GET 요청 핸들러 - 뉴스 포스트 목록 또는 특정 뉴스 포스트 조회
+ */
 export async function GET(req: NextRequest) {
+  let controller: AbortController | null = null;
+  
   try {
-    await connectDB();
+    // 타임아웃 설정
+    controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      if (controller) controller.abort();
+    }, 10000); // 10초 타임아웃
+    
+    // DB 연결
+    await connectToDatabase();
+    
+    // 쿼리 파라미터 파싱
     const { searchParams } = new URL(req.url);
     const category = searchParams.get('category');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const isPublished = searchParams.get('isPublished') !== 'false';
-
-    const query = {
-      ...(category && { category }),
-      isPublished
-    };
-
-    const total = await NewsPost.countDocuments(query);
-    const posts = await NewsPost.find(query)
-      .sort({ publishDate: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .populate('author', 'name');
-
-    return NextResponse.json({
-      posts,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const page = searchParams.has('page') ? parseInt(searchParams.get('page') as string) : 1;
+    const limit = searchParams.has('limit') ? parseInt(searchParams.get('limit') as string) : 10;
+    const isPublished = searchParams.get('isPublished') === 'true';
+    const withCounts = searchParams.get('withCounts') === 'true';
+    const search = searchParams.get('search');
+    
+    // 쿼리 조건 설정
+    const query: any = {};
+    
+    // 카테고리 필터링
+    if (category) {
+      query.category = category;
+    }
+    
+    // 발행 상태 필터링
+    if (isPublished !== undefined) {
+      query.isPublished = isPublished;
+    }
+    
+    // 검색어 필터링
+    if (search) {
+      query['$or'] = [
+        { 'title.ko': { $regex: search, $options: 'i' } },
+        { 'title.en': { $regex: search, $options: 'i' } },
+        { 'summary.ko': { $regex: search, $options: 'i' } },
+        { 'summary.en': { $regex: search, $options: 'i' } },
+        { 'content.ko': { $regex: search, $options: 'i' } },
+        { 'content.en': { $regex: search, $options: 'i' } },
+        { tags: { $in: [new RegExp(search, 'i')] } }
+      ];
+    }
+    
+    // 페이지네이션 설정
+    const skip = (page - 1) * limit;
+    
+    // 뉴스 포스트 조회
+    let posts;
+    let total = 0;
+    
+    if (withCounts) {
+      // 전체 개수와 함께 조회
+      [posts, total] = await Promise.all([
+        NewsPost.find(query)
+          .sort({ publishDate: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec(),
+        NewsPost.countDocuments(query)
+      ]);
+    } else {
+      // 개수 없이 조회
+      posts = await NewsPost.find(query)
+        .sort({ publishDate: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec();
+    }
+    
+    clearTimeout(timeoutId);
+    
+    // 응답 생성
+    const response = withCounts
+      ? { success: true, posts, total, page, limit }
+      : { success: true, posts };
+    
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('뉴스 포스트 조회 중 오류:', error);
+    
+    // AbortError는 타임아웃 또는 의도적인 취소
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json({
+        success: false,
+        message: '요청 시간이 초과되었습니다.'
+      }, { status: 504 });
+    }
+    
+    try {
+      return NextResponse.json({
+        success: false,
+        message: '포스트 조회 중 오류가 발생했습니다.'
+      }, { status: 500 });
+    } catch (finalError) {
+      // 응답 생성 자체에 실패한 경우 (스트림 오류 등)
+      const fallbackResponse = new Response(
+        JSON.stringify({
+          success: false,
+          message: '서버 응답 생성 중 오류가 발생했습니다.'
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+      return fallbackResponse;
+    } finally {
+      // 컨트롤러 정리
+      if (controller) {
+        controller = null;
+      }
+    }
   }
 } 

@@ -72,7 +72,7 @@ async function migrateNews() {
           },
           keywords: {
             ko: [post.category, '뉴스', '에코아이티'],
-            en: [post.category, 'news', 'Echo IT']
+            en: [post.category, 'news', 'ECHOIT']
           }
         },
         status: 'published',
@@ -125,7 +125,7 @@ async function migrateESG() {
           },
           keywords: {
             ko: [post.category, 'ESG', '에코아이티', '지속가능경영'],
-            en: [post.category, 'ESG', 'Echo IT', 'Sustainability']
+            en: [post.category, 'ESG', 'ECHOIT', 'Sustainability']
           }
         },
         status: 'published',

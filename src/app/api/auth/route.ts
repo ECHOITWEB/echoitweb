@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db/mongodb';
+import { connectToDatabase } from '@/lib/db/connect';
 import { User, UserRole } from '@/lib/db/models';
 import { generateTokens, extractUserAuthInfo, verifyRefreshToken, verifyAccessToken } from '@/lib/auth/jwt';
 import bcrypt from 'bcryptjs';
@@ -8,9 +8,21 @@ import bcrypt from 'bcryptjs';
  * 로그인 API
  */
 export async function POST(request: NextRequest) {
+  // 요청 데이터 미리 추출
+  let requestData;
+  try {
+    requestData = await request.json();
+  } catch (error) {
+    console.error('요청 파싱 오류:', error);
+    return NextResponse.json({
+      success: false,
+      message: '잘못된 요청 형식입니다.',
+    }, { status: 400 });
+  }
+
   try {
     console.log('로그인 요청 받음');
-    const { username, password } = await request.json();
+    const { username, password } = requestData;
     console.log('로그인 시도:', username);
 
     if (!username || !password) {
@@ -18,7 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         message: '사용자명과 비밀번호를 입력해주세요.',
-      });
+      }, { status: 400 });
     }
 
     // MongoDB 연결
@@ -39,11 +51,13 @@ export async function POST(request: NextRequest) {
         username: 'admin',
         email: 'admin@echoit.co.kr',
         password: hashedPassword,
-        name: '관리자',
+        name: {
+          first: '관리자',
+          last: ''
+        },
         role: 'admin',
+        roles: ['admin'],
         isActive: true,
-        createdAt: new Date(),
-        lastLogin: new Date()
       });
 
       try {
@@ -54,7 +68,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: false,
           message: '관리자 계정 생성 중 오류가 발생했습니다.'
-        });
+        }, { status: 500 });
       }
     }
 
@@ -63,7 +77,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         message: '사용자를 찾을 수 없거나 비활성화된 계정입니다.',
-      });
+      }, { status: 401 });
     }
 
     // 비밀번호 검증
@@ -76,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         message: '비밀번호가 일치하지 않습니다.',
-      });
+      }, { status: 401 });
     }
 
     // 마지막 로그인 시간 업데이트
@@ -137,57 +151,82 @@ export async function POST(request: NextRequest) {
     
     console.log('최종 사용자 역할:', userRole, '역할 배열:', userRoles);
     
-    const tokens = generateTokens({
-      id: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      role: userRole,
-      roles: userRoles
-    });
-    console.log('토큰 생성 성공');
+    try {
+      const tokens = generateTokens({
+        id: user._id.toString(),
+        username: user.username,
+        email: user.email,
+        role: userRole,
+        roles: userRoles
+      });
+      console.log('토큰 생성 성공');
 
-    // 응답 데이터 구성
-    const userData = {
-      id: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      role: userRole,
-      isActive: user.isActive,
-      createdAt: user.createdAt.toISOString(),
-      lastLogin: user.lastLogin?.toISOString(),
-    };
-    console.log('응답 데이터 구성 완료');
+      // 응답 데이터 구성
+      const userData = {
+        id: user._id.toString(),
+        username: user.username,
+        email: user.email,
+        name: typeof user.name === 'object' ? 
+          `${user.name.first} ${user.name.last || ''}`.trim() : 
+          user.name || user.username,
+        role: userRole,
+        isActive: user.isActive,
+        createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+        lastLogin: user.lastLogin?.toISOString() || new Date().toISOString(),
+      };
+      console.log('응답 데이터 구성 완료');
 
-    // 응답 생성
-    const response = NextResponse.json({
-      success: true,
-      data: {
-        user: userData,
-      },
-      tokens,
-    });
+      // 응답 객체 생성 
+      const responseData = {
+        success: true,
+        data: {
+          user: userData,
+        },
+        tokens,
+      };
 
-    // 쿠키에 토큰 설정 (httpOnly는 false로 설정하여 클라이언트 JavaScript에서 접근 가능하게)
-    response.cookies.set({
-      name: 'echoit_auth_token',
-      value: tokens.accessToken,
-      path: '/',
-      maxAge: 60 * 60 * 24, // 24시간
-      sameSite: 'lax',
-      httpOnly: false,
-    });
+      // 응답 생성
+      const response = NextResponse.json(responseData, { status: 200 });
 
-    console.log('쿠키 설정 완료:', tokens.accessToken.substring(0, 10) + '...');
+      // 쿠키에 토큰 설정 (httpOnly는 false로 설정하여 클라이언트 JavaScript에서 접근 가능하게)
+      response.cookies.set({
+        name: 'echoit_auth_token',
+        value: tokens.accessToken,
+        path: '/',
+        maxAge: 60 * 60 * 24, // 24시간
+        sameSite: 'lax',
+        httpOnly: false,
+      });
 
-    return response;
+      console.log('쿠키 설정 완료:', tokens.accessToken.substring(0, 10) + '...');
+
+      return response;
+    } catch (tokenError) {
+      console.error('토큰 생성 또는 응답 처리 중 오류:', tokenError);
+      return NextResponse.json({
+        success: false,
+        message: '인증 토큰 생성 중 오류가 발생했습니다.'
+      }, { status: 500 });
+    }
 
   } catch (error) {
     console.error('로그인 처리 중 오류 발생:', error);
-    return NextResponse.json({
-      success: false,
-      message: '로그인 처리 중 오류가 발생했습니다.',
-    });
+    // 오류 응답을 위한 안전한 방법 사용
+    try {
+      return NextResponse.json({
+        success: false,
+        message: '로그인 처리 중 오류가 발생했습니다.',
+      }, { status: 500 });
+    } catch (responseError) {
+      // 응답 생성 자체가 실패한 경우 최후의 방법으로 일반 Response 객체 사용
+      return new Response(JSON.stringify({
+        success: false,
+        message: '서버 오류가 발생했습니다.'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 }
 
@@ -227,29 +266,68 @@ export async function PUT(request: NextRequest) {
     }
 
     // 사용자 조회
-    const user = await User.findById(payload.userId);
+    const user = await User.findById(payload.userId || payload.id);
     if (!user || !user.isActive) {
+      console.error(`토큰 갱신 실패: 사용자 찾을 수 없음 (ID: ${payload.userId || payload.id})`);
       return NextResponse.json({
         success: false,
         message: '유효하지 않은 사용자입니다.'
       }, { status: 401 });
     }
 
-    // 새 토큰 생성
-    const userAuthInfo = extractUserAuthInfo(user);
-    const tokens = generateTokens(userAuthInfo);
+    try {
+      // 새 토큰 생성
+      const tokens = generateTokens(extractUserAuthInfo(user));
 
-    // 응답 반환
-    return NextResponse.json({
-      success: true,
-      tokens
-    }, { status: 200 });
+      // 응답 생성
+      const response = NextResponse.json({
+        success: true,
+        data: {
+          user: {
+            id: payload.userId || payload.id,
+            username: payload.username,
+            email: payload.email,
+            role: payload.role,
+            roles: payload.roles || [payload.role]
+          }
+        },
+        tokens
+      }, { status: 200 });
+
+      // 쿠키에 새 액세스 토큰 설정
+      response.cookies.set({
+        name: 'echoit_auth_token',
+        value: tokens.accessToken,
+        path: '/',
+        maxAge: 60 * 60 * 24, // 24시간
+        sameSite: 'lax',
+        httpOnly: false,
+      });
+
+      return response;
+    } catch (tokenError) {
+      console.error('토큰 갱신 중 오류 발생:', tokenError);
+      return NextResponse.json({
+        success: false,
+        message: '토큰 갱신 중 오류가 발생했습니다.'
+      }, { status: 500 });
+    }
   } catch (error) {
-    console.error('Token refresh error:', error);
-    return NextResponse.json({
-      success: false,
-      message: '토큰 갱신 중 오류가 발생했습니다.'
-    }, { status: 500 });
+    console.error('토큰 리프레시 오류:', error);
+    try {
+      return NextResponse.json({
+        success: false,
+        message: '토큰 갱신 처리 중 오류가 발생했습니다.'
+      }, { status: 500 });
+    } catch (responseError) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: '서버 오류가 발생했습니다.'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 }
 
@@ -258,60 +336,52 @@ export async function PUT(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // 토큰 추출
-    const authHeader = request.headers.get('authorization');
+    const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({
         success: false,
-        message: '인증 토큰이 필요합니다.',
+        message: '인증 토큰이 필요합니다.'
       }, { status: 401 });
     }
-    
-    const token = authHeader.substring(7); // "Bearer " 이후 문자열
+
+    const token = authHeader.split(' ')[1];
     const payload = verifyAccessToken(token);
-    
+
     if (!payload) {
       return NextResponse.json({
         success: false,
-        message: '유효하지 않거나 만료된 토큰입니다.',
+        message: '유효하지 않거나 만료된 토큰입니다.'
       }, { status: 401 });
     }
 
-    // MongoDB 연결
-    await connectToDatabase();
-
-    // 사용자 조회
-    const user = await User.findById(payload.userId);
-
-    if (!user || !user.isActive) {
-      return NextResponse.json({
-        success: false,
-        message: '사용자를 찾을 수 없거나 비활성화된 계정입니다.',
-      }, { status: 404 });
-    }
-
-    // 사용자 역할 확인
-    const role = user.roles && user.roles.length > 0 ? user.roles[0] : 'viewer';
-
-    // 응답 데이터 구성
     return NextResponse.json({
       success: true,
-      user: {
-        id: user._id.toString(),
-        username: user.username,
-        email: user.email,
-        name: user.name,
-        role: role,
-        isActive: user.isActive,
-        lastLogin: user.lastLogin
+      data: {
+        user: {
+          id: payload.userId || payload.id,
+          username: payload.username,
+          email: payload.email,
+          role: payload.role,
+          roles: payload.roles || [payload.role]
+        }
       }
     });
   } catch (error) {
-    console.error('사용자 정보 조회 중 오류 발생:', error);
-    return NextResponse.json({
-      success: false,
-      message: '사용자 정보를 조회하는 중 오류가 발생했습니다.'
-    }, { status: 500 });
+    console.error('토큰 검증 오류:', error);
+    try {
+      return NextResponse.json({
+        success: false,
+        message: '토큰 검증 중 오류가 발생했습니다.'
+      }, { status: 500 });
+    } catch (responseError) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: '서버 오류가 발생했습니다.'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 }
 

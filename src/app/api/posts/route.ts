@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         },
         keywords: {
           ko: [validatedData.category, validatedData.type === 'news' ? '뉴스' : 'ESG', '에코아이티'],
-          en: [validatedData.category, validatedData.type === 'news' ? 'news' : 'ESG', 'Echo IT']
+          en: [validatedData.category, validatedData.type === 'news' ? 'news' : 'ESG', 'ECHOIT']
         }
       },
       status: 'published',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connect';
-import { ESGPost } from '@/lib/db/models/ESGPost';
+import ESGPostModel from '@/lib/db/models/ESGPost';
 import { AuthorDepartment } from '@/types/esg';
 import { translate } from '@/lib/translate';
 import { requireEditor } from '@/lib/auth/middleware';
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       author: JSON.stringify(authorData)
     });
 
-    const post = await ESGPost.create({
+    const post = await ESGPostModel.create({
       title,
       slug,
       summary,
@@ -166,88 +166,127 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * GET 요청 핸들러 - ESG 포스트 목록 또는 특정 ESG 포스트 조회
+ */
 export async function GET(req: NextRequest) {
+  let controller: AbortController | null = null;
+  
   try {
-    await connectToDatabase();
-    const { searchParams } = new URL(req.url);
+    // 타임아웃 설정
+    controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      if (controller) controller.abort();
+    }, 10000); // 10초 타임아웃
     
-    // 검색 매개변수 추출
+    // DB 연결
+    await connectToDatabase();
+    
+    // 쿼리 파라미터 파싱
+    const { searchParams } = new URL(req.url);
     const category = searchParams.get('category');
-    const isPublished = searchParams.get('isPublished');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const page = searchParams.has('page') ? parseInt(searchParams.get('page') as string) : 1;
+    const limit = searchParams.has('limit') ? parseInt(searchParams.get('limit') as string) : 10;
+    const isPublished = searchParams.get('isPublished') === 'true';
+    const withCounts = searchParams.get('withCounts') === 'true';
     const search = searchParams.get('search');
-    const sort = searchParams.get('sort') || 'publishDate';
-    const order = searchParams.get('order') || 'desc';
-    const isMainFeatured = searchParams.get('isMainFeatured');
-    const tag = searchParams.get('tag');
-
-    // 쿼리 조건 구성
+    
+    // 쿼리 조건 설정
     const query: any = {};
-
-    // 카테고리 필터
-    if (category && category !== 'all') {
+    
+    // 카테고리 필터링
+    if (category) {
       query.category = category;
     }
-
-    // 공개 여부 필터
-    if (isPublished !== null) {
-      query.isPublished = isPublished === 'true';
+    
+    // 발행 상태 필터링
+    if (isPublished !== undefined) {
+      query.isPublished = isPublished;
     }
-
-    // 메인 노출 필터
-    if (isMainFeatured !== null) {
-      query.isMainFeatured = isMainFeatured === 'true';
-    }
-
-    // 태그 필터
-    if (tag) {
-      query.tags = tag;
-    }
-
-    // 검색어 필터
+    
+    // 검색어 필터링
     if (search) {
-      query.$or = [
-        { 'title.ko': { $regex: search, $options: 'i' } }, 
+      query['$or'] = [
+        { 'title.ko': { $regex: search, $options: 'i' } },
+        { 'title.en': { $regex: search, $options: 'i' } },
         { 'summary.ko': { $regex: search, $options: 'i' } },
+        { 'summary.en': { $regex: search, $options: 'i' } },
         { 'content.ko': { $regex: search, $options: 'i' } },
-        { tags: { $regex: search, $options: 'i' } }
+        { 'content.en': { $regex: search, $options: 'i' } },
+        { tags: { $in: [new RegExp(search, 'i')] } }
       ];
     }
-
-    // 총 게시물 수 카운트
-    const total = await ESGPost.countDocuments(query);
-
-    // 정렬 설정
-    const sortOptions: any = {};
-    sortOptions[sort] = order === 'asc' ? 1 : -1;
-
-    // 페이지네이션 적용
+    
+    // 페이지네이션 설정
     const skip = (page - 1) * limit;
-
-    // 게시물 목록 조회
-    const posts = await ESGPost.find(query)
-      .sort(sortOptions)
-      .skip(skip)
-      .limit(limit);
-
-    return NextResponse.json({
-      success: true,
-      posts,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
+    
+    // ESG 포스트 조회
+    let posts;
+    let total = 0;
+    
+    if (withCounts) {
+      // 전체 개수와 함께 조회
+      [posts, total] = await Promise.all([
+        ESGPostModel.find(query)
+          .sort({ publishDate: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec(),
+        ESGPostModel.countDocuments(query)
+      ]);
+    } else {
+      // 개수 없이 조회
+      posts = await ESGPostModel.find(query)
+        .sort({ publishDate: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec();
+    }
+    
+    clearTimeout(timeoutId);
+    
+    // 응답 생성
+    const response = withCounts
+      ? { success: true, posts, total, page, limit }
+      : { success: true, posts };
+    
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error('ESG 포스트 조회 중 오류:', error);
+    
+    // AbortError는 타임아웃 또는 의도적인 취소
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json({
+        success: false,
+        message: '요청 시간이 초과되었습니다.'
+      }, { status: 504 });
+    }
+    
+    try {
+      return NextResponse.json({
+        success: false,
+        message: '포스트 조회 중 오류가 발생했습니다.'
+      }, { status: 500 });
+    } catch (finalError) {
+      // 응답 생성 자체에 실패한 경우 (스트림 오류 등)
+      const fallbackResponse = new Response(
+        JSON.stringify({
+          success: false,
+          message: '서버 응답 생성 중 오류가 발생했습니다.'
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+      return fallbackResponse;
+    } finally {
+      // 컨트롤러 정리
+      if (controller) {
+        controller = null;
       }
-    });
-  } catch (error: any) {
-    console.error('ESG 게시물 목록 조회 오류:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message || 'ESG 게시물 목록을 불러오는 중 오류가 발생했습니다.' 
-    }, { 
-      status: 500 
-    });
+    }
   }
 } 

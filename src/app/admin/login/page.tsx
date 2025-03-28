@@ -177,8 +177,27 @@ export default function AdminLoginPage() {
             }
 
             setRedirecting(true);
-            // 직접 페이지 이동
-            window.location.href = '/admin';
+            
+            // 세션 저장 및 라우팅 자체에 약간의 시간을 줍니다
+            setTimeout(() => {
+              try {
+                // Next.js 라우터로 관리자 페이지로 이동
+                router.push('/admin');
+                
+                // 라우터 이동이 실패하면 추가 백업 메커니즘 사용
+                setTimeout(() => {
+                  // 아직 로그인 페이지에 있다면 직접 URL 이동 시도
+                  if (window.location.pathname.includes('/admin/login')) {
+                    console.log('라우터 이동 실패, 페이지 직접 이동');
+                    window.location.href = '/admin';
+                  }
+                }, 1500);
+              } catch (navError) {
+                console.error('페이지 이동 오류:', navError);
+                // 라우터 에러 발생시 직접 URL로 이동
+                window.location.href = '/admin';
+              }
+            }, 300);
           } else {
             // 로그인 실패 처리
             const newAttempts = loginAttempts + 1;
@@ -270,7 +289,7 @@ export default function AdminLoginPage() {
           <div className="text-center mb-6">
             <Image
               src="/images/logo.svg"
-              alt="Echo IT 로고"
+              alt="ECHOIT 로고"
               width={180}
               height={50}
               className="mx-auto mb-2"
@@ -390,7 +409,7 @@ export default function AdminLoginPage() {
         
         <div className="bg-gray-50 dark:bg-gray-700/50 px-8 py-4">
           <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-            © 2023 Echo IT. All rights reserved.
+            © 2025 ECHOIT. All rights reserved.
           </p>
         </div>
       </div>

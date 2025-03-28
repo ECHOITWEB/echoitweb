@@ -1,6 +1,6 @@
 # MongoDB Atlas 설정 가이드
 
-이 가이드는 Echo IT 클론 프로젝트를 위한 MongoDB Atlas 설정 과정을 안내합니다.
+이 가이드는 ECHOIT 클론 프로젝트를 위한 MongoDB Atlas 설정 과정을 안내합니다.
 
 ## 1. MongoDB Atlas 계정 생성
 

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { isLoggedIn, clearSession, setSession } from '@/lib/auth/session';
 import apiClient from '@/lib/auth/api-client';
+import { useRouter } from 'next/navigation';
 
 // 사용자 역할 타입
 export type UserRole = 'admin' | 'editor' | 'viewer';
@@ -48,6 +49,31 @@ const MAX_RETRY_COUNT = 3;
 // 재시도 지연 시간 (ms)
 const RETRY_DELAY = 1000;
 
+// 로그인 응답 인터페이스
+interface LoginResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    user: UserInfo;
+  };
+  tokens?: {
+    accessToken: string;
+    refreshToken: string;
+  };
+}
+
+// API 응답 인터페이스
+interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+}
+
+// 사용자 정보가 포함된 API 응답
+interface UserResponse {
+  user: UserInfo;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // 기본 상태로 초기화하여 하이드레이션 불일치 방지
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(defaultState.isAuthenticated);
@@ -56,6 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [mounted, setMounted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(defaultState.isLoading);
   const [error, setError] = useState<string | null>(defaultState.error);
+  const router = useRouter();
 
   // 클라이언트 사이드 마운트 후 실행
   useEffect(() => {
@@ -64,13 +91,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // API 호출 실행 함수 - 재시도 로직 추가
   const executeApiCall = useCallback(async <T,>(
-    apiCall: () => Promise<T>,
+    apiCall: () => Promise<ApiResponse<T>>,
     maxRetries = MAX_RETRY_COUNT,
     delay = RETRY_DELAY
-  ): Promise<T | null> => {
+  ): Promise<ApiResponse<T> | null> => {
     let retries = 0;
 
-    const attempt = async (): Promise<T | null> => {
+    const attempt = async (): Promise<ApiResponse<T> | null> => {
       try {
         return await apiCall();
       } catch (error: any) {
@@ -104,40 +131,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 기존 인증 확인
     const initAuth = async () => {
       try {
-        // 로컬 스토리지에서 토큰 확인
-        if (isBrowser && isLoggedIn()) {
+        // 컴포넌트가 마운트되었고 브라우저 환경인지 확인
+        if (!isMounted || !isBrowser) {
+          setIsInitialized(true);
+          return;
+        }
+        
+        // 로컬 스토리지 토큰 확인
+        if (isLoggedIn()) {
           setIsLoading(true);
           setError(null);
+          console.log('기존 인증 확인: 토큰 존재');
 
           try {
-            // 서버 API로 사용자 정보 조회
-            const response = await executeApiCall(() => apiClient.get('/auth'));
+            // 서버 API로 사용자 정보 조회 시도
+            const response = await executeApiCall<UserResponse>(
+              () => apiClient.get('/auth'), 
+              2, // 최대 2회 재시도
+              500 // 초기 지연 500ms
+            );
 
-            if (response?.success && response.user) {
+            if (response?.success && response.data?.user) {
+              console.log('사용자 정보 검증 성공:', response.data.user.username);
               setIsAuthenticated(true);
-              setUser(response.user);
+              setUser(response.data.user);
             } else {
+              console.warn('토큰 있으나 사용자 정보 검증 실패');
               // 토큰이 유효하지 않으면 로그아웃
               clearSession();
+              setIsAuthenticated(false);
+              setUser(null);
             }
           } catch (error: any) {
-            console.error('Failed to verify session:', error);
+            console.error('세션 검증 실패:', error.message);
             setError('세션 검증에 실패했습니다. 다시 로그인해주세요.');
             clearSession();
+            setIsAuthenticated(false);
+            setUser(null);
           } finally {
             setIsLoading(false);
           }
+        } else {
+          console.log('인증 상태 없음: 로그인 필요');
+          setIsAuthenticated(false);
+          setUser(null);
         }
       } catch (error: any) {
-        console.error('Failed to initialize auth:', error);
+        console.error('인증 초기화 실패:', error.message);
         setError('인증 초기화에 실패했습니다.');
+        
         if (isBrowser) {
           clearSession();
+          setIsAuthenticated(false);
+          setUser(null);
         }
       } finally {
-        if (isMounted) {
-          setIsInitialized(true);
-        }
+        setIsInitialized(true);
       }
     };
 
@@ -156,10 +205,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
 
     try {
-      const response = await executeApiCall(() => apiClient.get('/auth'));
+      const response = await executeApiCall<UserResponse>(() => apiClient.get('/auth'));
 
-      if (response?.success && response.user) {
-        setUser(response.user);
+      if (response?.success && response?.data?.user) {
+        setUser(response.data.user);
       }
     } catch (error: any) {
       console.error('Failed to refresh user info:', error);
@@ -171,35 +220,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 로그인 함수 - 서버 API 사용
   const login = async (username: string, password: string): Promise<boolean> => {
+    // 상태 초기화
+    setError('');
     setIsLoading(true);
-    setError(null);
-
+    clearSession();
+    
     try {
-      // apiClient를 사용하여 일관된 API 호출
-      const response = await executeApiCall(() =>
-        apiClient.post('/auth', { username, password })
-      );
-
-      if (response?.success) {
-        setIsAuthenticated(true);
-        setUser(response.user);
-
-        // 세션 저장 - JWT 토큰
-        setSession({
-          accessToken: response.tokens.accessToken,
-          refreshToken: response.tokens.refreshToken
-        });
-
-        return true;
+      console.log('로그인 시도 시작:', username);
+      
+      // 최대한 단순하게 요청 구성
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: username,
+          password
+        })
+      });
+      
+      console.log('응답 상태 코드:', response.status);
+      
+      // 응답 텍스트 읽기
+      const responseText = await response.text();
+      console.log('응답 데이터 수신 완료, 길이:', responseText.length);
+      
+      // 빈 응답인지 확인
+      if (!responseText || responseText.trim() === '') {
+        console.error('빈 응답 데이터');
+        throw new Error('서버에서 빈 응답이 반환되었습니다');
       }
-
-      return false;
-    } catch (error: any) {
-      console.error('Login failed:', error);
-      setError('로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
-      return false;
-    } finally {
+      
+      // 안전하게 JSON 파싱
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON 파싱 오류:', parseError);
+        throw new Error('서버 응답을 처리할 수 없습니다');
+      }
+      
+      // 응답 검증
+      if (!data.success) {
+        console.error('로그인 실패:', data.message);
+        throw new Error(data.message || '로그인에 실패했습니다');
+      }
+      
+      // 토큰 검증
+      if (!data.tokens || !data.tokens.accessToken || !data.tokens.refreshToken) {
+        console.error('유효하지 않은 토큰', data);
+        throw new Error('인증 토큰이 잘못되었습니다');
+      }
+      
+      // 세션 저장
+      setSession({
+        accessToken: data.tokens.accessToken,
+        refreshToken: data.tokens.refreshToken
+      }, 24 * 60 * 60 * 1000); // 24시간
+      
+      console.log('토큰 저장 완료');
+      
+      // 사용자 정보 설정
+      if (data.user) {
+        setUser(data.user);
+        setIsAuthenticated(true);
+        console.log('사용자 정보 설정 완료:', data.user.username);
+        
+        // 라우팅은 login 함수에서 처리하지 않고 레이아웃 또는 페이지 컴포넌트에서 처리
+        // router.push('/admin'); - 삭제
+      } else {
+        console.warn('사용자 정보 누락됨');
+      }
+      
       setIsLoading(false);
+      return true;
+      
+    } catch (error: any) {
+      console.error('로그인 오류:', error);
+      setError(error.message || '로그인 중 오류가 발생했습니다');
+      setIsLoading(false);
+      clearSession();
+      return false;
     }
   };
 

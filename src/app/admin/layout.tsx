@@ -33,42 +33,82 @@ export default function AdminLayout({
   // 클라이언트 사이드 마운트 후 실행
   useEffect(() => {
     setIsMounted(true);
+    console.log('관리자 레이아웃 마운트됨');
   }, []);
+
+  // 디버깅용 - 인증 상태 변화 추적
+  useEffect(() => {
+    if (isMounted) {
+      console.log('인증 상태 변경:', { 
+        isAuthenticated, 
+        isInitialized,
+        currentPath: pathname
+      });
+    }
+  }, [isAuthenticated, isInitialized, pathname, isMounted]);
 
   // 인증 상태에 따른 리다이렉션 처리
   useEffect(() => {
     // 클라이언트 사이드에서만 실행
     if (!isMounted || !isInitialized) return;
 
+    console.log('관리자 레이아웃 인증 상태:', { 
+      isAuthenticated, 
+      pathname, 
+      isAtLoginPage: pathname === '/admin/login',
+      isLoading 
+    });
+
+    // 마운트 후 지연 시간을 줘서 인증 상태가 제대로 확인되게 함
     const timer = setTimeout(() => {
       // 로그인 페이지가 아니고 인증되지 않은 경우 로그인 페이지로 리다이렉션
       if (!isAuthenticated && pathname !== '/admin/login') {
-        window.location.href = '/admin/login';
+        console.log('인증되지 않음, 로그인 페이지로 이동');
+        router.push('/admin/login');
         return;
       }
 
       // 로그인 페이지이고 이미 인증된 경우 관리자 홈으로 리다이렉션
       if (isAuthenticated && pathname === '/admin/login') {
-        window.location.href = '/admin';
+        console.log('이미 인증됨, 관리자 페이지로 이동');
+        router.push('/admin');
         return;
       }
 
       setIsLoading(false);
-    }, 300);
+    }, 500); // 지연 시간 500ms로 증가
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, isInitialized, pathname, isMounted]);
+  }, [isAuthenticated, isInitialized, pathname, router, isMounted]);
 
   // 로딩 중이거나 초기 인증 검사 중에는 로딩 상태 표시
-  if (!isMounted || isLoading || (!isAuthenticated && pathname !== '/admin/login')) {
+  if (!isMounted || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg text-center">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-700 dark:text-gray-300">로딩 중...</p>
+          <p className="text-gray-700 dark:text-gray-300">인증 상태 확인 중...</p>
         </div>
       </div>
     );
+  }
+
+  // 로그인 페이지가 아니고 인증되지 않은 경우 로그인 페이지로 리다이렉션
+  if (!isAuthenticated && pathname !== '/admin/login') {
+    // 서버 사이드에서는 실행되지 않도록 함
+    if (typeof window !== 'undefined') {
+      router.push('/admin/login');
+    }
+    return null; // 렌더링 방지
+  }
+
+  // 로그인 페이지이고 이미 인증된 경우 관리자 홈으로 리다이렉션
+  if (isAuthenticated && pathname === '/admin/login') {
+    // 서버 사이드에서는 실행되지 않도록 함
+    if (typeof window !== 'undefined') {
+      router.push('/admin');
+    }
+    return null; // 렌더링 방지
   }
 
   const menuItems = [
@@ -116,7 +156,7 @@ export default function AdminLayout({
                   <Link href="/admin" className="block w-auto h-8 relative">
                     <Image
                       src="/images/logo.svg"
-                      alt="Echo IT Logo"
+                      alt="ECHOIT Logo"
                       width={120}
                       height={32}
                       priority

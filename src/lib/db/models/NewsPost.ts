@@ -39,6 +39,7 @@ export interface INewsPost extends Document {
   originalUrl?: string;
   viewCount: number;
   isPublished: boolean;
+  isMainFeatured?: boolean;
   slug: string;
   createdAt: Date;
   updatedAt: Date;
@@ -80,6 +81,7 @@ const newsPostSchema = new Schema<INewsPost>(
     },
     viewCount: { type: Number, default: 0 },
     isPublished: { type: Boolean, default: false },
+    isMainFeatured: { type: Boolean, default: false },
     slug: { type: String, required: true, unique: true }
   },
   {
@@ -90,6 +92,7 @@ const newsPostSchema = new Schema<INewsPost>(
 // 인덱스 생성
 newsPostSchema.index({ 'title.ko': 1 });
 newsPostSchema.index({ category: 1 });
+newsPostSchema.index({ isMainFeatured: 1 });
 
 export const NewsPost = mongoose.models.NewsPost || mongoose.model<INewsPost>('NewsPost', newsPostSchema);
 

@@ -26,13 +26,13 @@ let esgPosts = [
         id: '1',
         title: {
             ko: '에코아이티, 카본 중립 이니셔티브 발표',
-            en: 'Echo IT Announces Carbon Neutrality Initiative'
+            en: 'ECHOIT Announces Carbon Neutrality Initiative'
         },
         slug: 'carbon-neutrality-initiative',
         date: '2025-03-10',
         excerpt: {
             ko: '에코아이티는 2030년까지 탄소 중립을 달성하기 위한 종합적인 친환경 계획을 발표했습니다.',
-            en: 'Echo IT has announced a comprehensive environmental plan to achieve carbon neutrality by 2030.'
+            en: 'ECHOIT has announced a comprehensive environmental plan to achieve carbon neutrality by 2030.'
         },
         content: {
             ko: `에코아이티는 2030년까지 탄소 중립을 달성하기 위한 종합적인 친환경 계획을 발표했습니다.
@@ -42,13 +42,13 @@ let esgPosts = [
 CEO는 "기후 변화는 우리 모두가 직면한 가장 중요한 도전 중 하나이며, 기업으로서 우리는 이에 적극적으로 대응해야 할 책임이 있습니다"라고 밝혔습니다.
 
 에코아이티는 또한 친환경 IT 솔루션을 개발하여 고객들이 비즈니스 운영 과정에서 환경 영향을 최소화할 수 있도록 지원할 예정입니다.`,
-            en: `Echo IT has announced a comprehensive environmental plan to achieve carbon neutrality by 2030.
+            en: `ECHOIT has announced a comprehensive environmental plan to achieve carbon neutrality by 2030.
 
-This plan includes expanding the use of renewable energy, improving energy efficiency, and sustainable office operations. Echo IT will measure and gradually reduce carbon emissions that occur during the IT service delivery process.
+This plan includes expanding the use of renewable energy, improving energy efficiency, and sustainable office operations. ECHOIT will measure and gradually reduce carbon emissions that occur during the IT service delivery process.
 
 The CEO stated, "Climate change is one of the most important challenges we all face, and as a company, we have a responsibility to actively respond to it."
 
-Echo IT will also develop eco-friendly IT solutions to help customers minimize their environmental impact during business operations.`
+ECHOIT will also develop eco-friendly IT solutions to help customers minimize their environmental impact during business operations.`
         },
         category: 'environment',
         imageSrc: 'https://images.unsplash.com/photo-1532601224476-15c79f2f7a51?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
@@ -64,7 +64,7 @@ Echo IT will also develop eco-friendly IT solutions to help customers minimize t
         date: '2025-02-15',
         excerpt: {
             ko: '에코아이티는 청소년과 취약계층을 위한 IT 교육 지원 프로그램을 확대하여 디지털 포용성을 강화합니다.',
-            en: 'Echo IT strengthens digital inclusion by expanding its IT education support program for youth and vulnerable groups.'
+            en: 'ECHOIT strengthens digital inclusion by expanding its IT education support program for youth and vulnerable groups.'
         },
         content: {
             ko: `에코아이티는 청소년과 취약계층을 위한 IT 교육 지원 프로그램을 확대하여 디지털 포용성을 강화하고 있습니다.
@@ -74,11 +74,11 @@ Echo IT will also develop eco-friendly IT solutions to help customers minimize t
 에코아이티의 임직원들은 자원봉사자로 참여하여 멘토링과 실무 지도를 제공하고 있으며, 연간 100명 이상의 청소년이 이 프로그램의 혜택을 받을 것으로 예상됩니다.
 
 "우리는 디지털 기술의 혜택이 모든 사람들에게 공평하게 제공되어야 한다고 믿습니다. 이 프로그램을 통해 미래 IT 인재를 육성하고 디지털 격차를 줄이는 데 기여하고자 합니다."라고 사회공헌 담당자는 말했습니다.`,
-            en: `Echo IT is strengthening digital inclusion by expanding its IT education support program for youth and vulnerable groups.
+            en: `ECHOIT is strengthening digital inclusion by expanding its IT education support program for youth and vulnerable groups.
 
 This program provides opportunities to develop various IT capabilities such as coding education, software development, and digital literacy. It includes customized curricula especially for youth in rural areas and vulnerable urban areas.
 
-Echo IT employees participate as volunteers providing mentoring and practical guidance, and it is expected that more than 100 youth will benefit from this program annually.
+ECHOIT employees participate as volunteers providing mentoring and practical guidance, and it is expected that more than 100 youth will benefit from this program annually.
 
 "We believe that the benefits of digital technology should be provided equitably to all people. Through this program, we aim to nurture future IT talent and contribute to reducing the digital divide," said the CSR manager.`
         },
@@ -90,13 +90,13 @@ Echo IT employees participate as volunteers providing mentoring and practical gu
         id: '3',
         title: {
             ko: '에코아이티, ESG 경영 위원회 신설',
-            en: 'Echo IT Establishes ESG Management Committee'
+            en: 'ECHOIT Establishes ESG Management Committee'
         },
         slug: 'esg-management-committee',
         date: '2025-01-20',
         excerpt: {
             ko: '에코아이티는 ESG 경영 강화를 위한 전담 위원회를 신설하여 지속가능한 경영 체계를 구축합니다.',
-            en: 'Echo IT establishes a dedicated committee to strengthen ESG management and build a sustainable management system.'
+            en: 'ECHOIT establishes a dedicated committee to strengthen ESG management and build a sustainable management system.'
         },
         content: {
             ko: `에코아이티는 ESG 경영 강화를 위한 전담 위원회를 신설하여 지속가능한 경영 체계를 구축합니다.
@@ -106,7 +106,7 @@ Echo IT employees participate as volunteers providing mentoring and practical gu
 위원회는 분기별로 ESG 성과를 검토하고, 국제 표준에 부합하는 지속가능성 보고서를 연간 발행하여 주요 이해관계자들과 소통할 계획입니다.
 
 "ESG는 기업의 장기적 성공과 사회적 가치 창출을 위한 필수 요소입니다. 우리는 이번 위원회 설립을 통해 ESG를 경영의 핵심 축으로 삼고, 책임 있는 기업 시민으로서의 역할을 다하겠습니다."라고 CEO는 밝혔습니다.`,
-            en: `Echo IT establishes a dedicated committee to strengthen ESG management and build a sustainable management system.
+            en: `ECHOIT establishes a dedicated committee to strengthen ESG management and build a sustainable management system.
 
 The newly established ESG Management Committee consists of key executives including the CEO, and will develop and implement strategies for environmental protection, social responsibility, and transparent governance.
 
@@ -128,7 +128,7 @@ The committee will review ESG performance quarterly and plans to communicate wit
         date: '2024-12-05',
         excerpt: {
             ko: '에코아이티는 에너지 효율성을 최대화한 새로운 친환경 클라우드 컴퓨팅 솔루션을 출시했습니다.',
-            en: 'Echo IT has launched a new eco-friendly cloud computing solution that maximizes energy efficiency.'
+            en: 'ECHOIT has launched a new eco-friendly cloud computing solution that maximizes energy efficiency.'
         },
         content: {
             ko: `에코아이티는 에너지 효율성을 최대화한 새로운 친환경 클라우드 컴퓨팅 솔루션을 출시했습니다.
@@ -138,11 +138,11 @@ The committee will review ESG performance quarterly and plans to communicate wit
 에코아이티는 재생 에너지로 운영되는 데이터 센터를 활용하여 클라우드 서비스의 탄소 발자국을 최소화하고, 고객 기업들의 친환경 경영을 지원합니다.
 
 "기업들은 디지털 전환과 동시에 환경적 책임을 다해야 하는 도전에 직면해 있습니다. 우리의 친환경 클라우드 솔루션은 이 두 가지 목표를 동시에 달성할 수 있는 혁신적인 방법을 제공합니다."라고 기술 책임자는 설명했습니다.`,
-            en: `Echo IT has launched a new eco-friendly cloud computing solution that maximizes energy efficiency.
+            en: `ECHOIT has launched a new eco-friendly cloud computing solution that maximizes energy efficiency.
 
 This solution provides up to 40% energy savings compared to existing cloud services through optimized resource allocation technology and AI-based energy management systems.
 
-Echo IT minimizes the carbon footprint of cloud services by utilizing data centers powered by renewable energy, supporting eco-friendly management of client companies.
+ECHOIT minimizes the carbon footprint of cloud services by utilizing data centers powered by renewable energy, supporting eco-friendly management of client companies.
 
 "Companies face the challenge of simultaneously pursuing digital transformation and fulfilling environmental responsibilities. Our eco-friendly cloud solution provides an innovative way to achieve both of these goals," explained the CTO.`
         },
@@ -160,7 +160,7 @@ Echo IT minimizes the carbon footprint of cloud services by utilizing data cente
         date: '2024-11-10',
         excerpt: {
             ko: '에코아이티는 기업 내 다양성과 포용성을 강화하기 위한 포괄적인 프로그램을 도입했습니다.',
-            en: 'Echo IT has introduced a comprehensive program to strengthen diversity and inclusion within the company.'
+            en: 'ECHOIT has introduced a comprehensive program to strengthen diversity and inclusion within the company.'
         },
         content: {
             ko: `에코아이티는 기업 내 다양성과 포용성을 강화하기 위한 포괄적인 프로그램을 도입했습니다.
@@ -170,11 +170,11 @@ Echo IT minimizes the carbon footprint of cloud services by utilizing data cente
 에코아이티는 이 프로그램을 통해 2026년까지 여성 리더십 비율을 30% 이상으로 높이고, 다양한 세대와 배경을 가진 인재들의 균형 있는 성장을 지원할 계획입니다.
 
 "다양성은 혁신의 원천이며, 포용적인 문화는 모든 구성원이 최상의 성과를 낼 수 있는 기반입니다. 우리는 이 프로그램을 통해 더 강력하고 창의적인 조직을 구축해 나갈 것입니다."라고 인사 담당 임원은 말했습니다.`,
-            en: `Echo IT has introduced a comprehensive program to strengthen diversity and inclusion within the company.
+            en: `ECHOIT has introduced a comprehensive program to strengthen diversity and inclusion within the company.
 
 This program includes expanding recruitment of talent with diverse backgrounds, providing leadership development opportunities, and creating an inclusive corporate culture, with the goal of creating an environment where all employees can reach their potential.
 
-Through this program, Echo IT plans to increase the proportion of women in leadership to over 30% by 2026 and support the balanced growth of talent from diverse generations and backgrounds.
+Through this program, ECHOIT plans to increase the proportion of women in leadership to over 30% by 2026 and support the balanced growth of talent from diverse generations and backgrounds.
 
 "Diversity is the source of innovation, and an inclusive culture is the foundation for all members to achieve their best performance. Through this program, we will build a stronger and more creative organization," said the HR executive.`
         },

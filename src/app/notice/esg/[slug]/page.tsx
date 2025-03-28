@@ -1,5 +1,5 @@
 import React from 'react';
-import { getESGPostBySlug, getAllESGPosts } from '@/lib/models/esg-posts';
+import { getESGPostBySlug } from '@/lib/services/posts';
 import { notFound } from 'next/navigation';
 import ESGPostDetail from './ESGPostDetail';
 
@@ -10,18 +10,10 @@ interface ESGDetailPageProps {
   };
 }
 
-// Generate static paths for all ESG posts
-export async function generateStaticParams() {
-  const posts = getAllESGPosts();
-  return posts.map(post => ({
-    slug: post.slug,
-  }));
-}
-
-// Server component
-export default function ESGDetailPage({ params }: ESGDetailPageProps) {
+// Server component with dynamic data fetching
+export default async function ESGDetailPage({ params }: ESGDetailPageProps) {
   const { slug } = params;
-  const post = getESGPostBySlug(slug);
+  const post = await getESGPostBySlug(slug);
 
   if (!post) {
     notFound();
