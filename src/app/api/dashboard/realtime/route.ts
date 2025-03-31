@@ -275,7 +275,7 @@ function generateHourlyViewsData() {
   return hours;
 }
 
-export async function getMongoData() {
+async function getMongoData() {
   try {
     const { db } = await connectToDatabase();
 

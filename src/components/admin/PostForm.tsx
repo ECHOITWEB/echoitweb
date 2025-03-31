@@ -21,10 +21,7 @@ interface IFormData {
   excerpt: { ko: string; en: string; };
   content: { ko: string; en: string; };
   category: string;
-  author: {
-    department: AuthorDepartment;
-    name: string;
-  };
+  author: string;
   date: string;
   imageSrc: string;
   showOnHomepage: boolean;
@@ -45,10 +42,7 @@ export default function PostForm({ type, categories, onSubmit, initialData }: Po
     excerpt: { ko: '', en: '' },
     content: { ko: '', en: '' },
     category: '',
-    author: {
-      department: AuthorDepartment.ADMIN,
-      name: ''
-    },
+    author: '',
     date: new Date().toISOString().split('T')[0],
     imageSrc: '',
     showOnHomepage: true
@@ -104,8 +98,8 @@ export default function PostForm({ type, categories, onSubmit, initialData }: Po
     }));
   };
 
-  const handleAuthorChange = (author: { department: AuthorDepartment; name: string }) => {
-    setFormData(prev => ({ ...prev, author }));
+  const handleAuthorChange = (authorId: string) => {
+    setFormData(prev => ({ ...prev, author: authorId }));
   };
 
   const handleDateSelect = (date: Date | undefined) => {

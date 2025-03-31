@@ -6,13 +6,13 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/echoit
 
 // 글로벌 변수로 연결 인스턴스 캐싱 (개발 모드에서 핫 리로딩시 재사용)
 declare global {
-  var mongoose: { conn: mongoose.Connection | null; promise: Promise<mongoose.Connection> | null };
+  var mongooseGlobal: { conn: mongoose.Connection | null; promise: Promise<mongoose.Connection> | null };
 }
 
-let cached = global.mongoose;
+let cached = global.mongooseGlobal;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = global.mongooseGlobal = { conn: null, promise: null };
 }
 
 /**

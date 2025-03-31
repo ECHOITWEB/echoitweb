@@ -344,7 +344,7 @@ export default function CreateESGPage() {
         <div className="space-y-2">
           <label className="text-sm font-medium">내용</label>
           <TinyEditor
-            initialValue={formData.content}
+            value={formData.content}
             onChange={(content) => setFormData({ ...formData, content })}
           />
           {errors.some(e => e.field === 'content') && (

@@ -12,7 +12,7 @@ export function CustomImage(props: ImageProps) {
   // Use a consistent crossOrigin value to avoid hydration mismatches
   const imageProps = {
     ...props,
-    crossOrigin: isExternalImage ? "anonymous" : undefined,
+    crossOrigin: isExternalImage ? "anonymous" as const : undefined,
   };
 
   return <Image {...imageProps} />;

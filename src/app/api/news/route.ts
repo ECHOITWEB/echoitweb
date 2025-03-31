@@ -6,7 +6,7 @@ import { AuthenticatedRequest, requireEditor } from '@/lib/auth/middleware';
 /**
  * 모든 뉴스 게시물 조회 API (페이지네이션 지원)
  */
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<Response> {
   try {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -79,13 +79,13 @@ export async function GET(req: NextRequest) {
 /**
  * 새 뉴스 게시물 생성 API - 편집자 이상 권한 필요
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<Response> {
   const authReq = req as AuthenticatedRequest;
 
   // 편집자 이상 권한 체크
   const authResult = await requireEditor(authReq);
   if (authResult) {
-    return authResult;
+    return NextResponse.json(authResult);
   }
 
   try {
@@ -160,4 +160,42 @@ export async function POST(req: NextRequest) {
       message: '뉴스 게시물 생성 중 오류가 발생했습니다.'
     }, { status: 500 });
   }
+}
+
+/**
+ * 뉴스 게시물 업데이트 API - 편집자 이상 권한 필요
+ */
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { slug: string } }
+): Promise<Response> {
+  const authReq = req as AuthenticatedRequest;
+
+  // 편집자 이상 권한 체크
+  const authResult = await requireEditor(authReq);
+  if (authResult) {
+    return NextResponse.json(authResult);
+  }
+
+  // 나머지 코드는 그대로...
+  return new NextResponse("Not implemented", { status: 501 });
+}
+
+/**
+ * 뉴스 게시물 삭제 API - 편집자 이상 권한 필요
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { slug: string } }
+): Promise<Response> {
+  const authReq = req as AuthenticatedRequest;
+
+  // 편집자 이상 권한 체크
+  const authResult = await requireEditor(authReq);
+  if (authResult) {
+    return NextResponse.json(authResult);
+  }
+
+  // 나머지 코드는 그대로...
+  return new NextResponse("Not implemented", { status: 501 });
 }

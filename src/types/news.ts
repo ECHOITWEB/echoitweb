@@ -4,6 +4,9 @@ export enum NewsCategory {
   AWARD = 'award',
   MEDIA = 'media',
   EVENT = 'event',
+  PARTNERSHIP = 'partnership',
+  NEWSLETTER = 'newsletter',
+  INVESTMENT = 'investment',
   OTHER = 'other'
 }
 

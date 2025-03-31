@@ -65,13 +65,13 @@ export async function GET(
 export async function PUT(
   req: NextRequest,
   { params }: { params: { slug: string } }
-) {
+): Promise<Response> {
   const authReq = req as AuthenticatedRequest;
 
   // 편집자 이상 권한 체크
   const authResult = await requireEditor(authReq);
   if (authResult) {
-    return authResult;
+    return NextResponse.json(authResult);
   }
 
   try {
@@ -163,13 +163,13 @@ export async function PUT(
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { slug: string } }
-) {
+): Promise<Response> {
   const authReq = req as AuthenticatedRequest;
 
   // 편집자 이상 권한 체크
   const authResult = await requireEditor(authReq);
   if (authResult) {
-    return authResult;
+    return NextResponse.json(authResult);
   }
 
   try {

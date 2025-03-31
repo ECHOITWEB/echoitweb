@@ -6,10 +6,11 @@ import { useRealtimeDashboard, DashboardData } from '@/lib/hooks/useRealtimeDash
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
   RefreshCw, AlertCircle, BookOpen, FileText, Users, Clock, BarChart as BarChartIcon,
-  TrendingUp, Zap, CheckCircle, XCircle, Cpu, Activity, Eye, Leaf, Newspaper, Loader2
+  PieChart as PieChartIcon, Activity, TrendingUp, Zap, CheckCircle, XCircle, Cpu, Eye, Leaf, Newspaper, Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const CATEGORY_COLORS = {
@@ -39,13 +40,9 @@ interface RecentPost {
   likes: number;
 }
 
-interface DashboardData {
-  stats: DashboardStats;
-  recentPosts: RecentPost[];
-  categories: {
-    news: Array<{ _id: string; count: number }>;
-    esg: Array<{ _id: string; count: number }>;
-  };
+interface CategoryDisplay {
+  _id: string;
+  count: number;
 }
 
 export default function AdminDashboardPage() {
@@ -55,11 +52,11 @@ export default function AdminDashboardPage() {
 
   // Update the last update time whenever new dashboard data arrives
   useEffect(() => {
-    if (data?.serverTime) {
-      const date = new Date(data.serverTime);
+    if (data?.timestamp) {
+      const date = new Date(data.timestamp);
       setLastUpdate(date.toLocaleTimeString());
     }
-  }, [data?.serverTime]);
+  }, [data?.timestamp]);
 
   if (isLoading) {
     return (
@@ -104,7 +101,7 @@ export default function AdminDashboardPage() {
   }
 
   // Destructure data for easier access
-  const { summary, recentActivity, analytics } = data;
+  const { totalStats, recentNews, recentESG, newsStats, esgStats } = data;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -123,9 +120,9 @@ export default function AdminDashboardPage() {
             <Newspaper className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.stats.totalNews}</div>
+            <div className="text-2xl font-bold">{totalStats.newsCount}</div>
             <p className="text-xs text-muted-foreground">
-              최근 30일: +{data.stats.recentNews}
+              최근 30일 조회수: {totalStats.recentNewsViews}
             </p>
           </CardContent>
         </Card>
@@ -133,12 +130,12 @@ export default function AdminDashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">전체 ESG</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <Leaf className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.stats.totalESG}</div>
+            <div className="text-2xl font-bold">{totalStats.esgCount}</div>
             <p className="text-xs text-muted-foreground">
-              최근 30일: +{data.stats.recentESG}
+              최근 30일 조회수: {totalStats.recentESGViews}
             </p>
           </CardContent>
         </Card>
@@ -149,9 +146,9 @@ export default function AdminDashboardPage() {
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.stats.totalNewsViews}</div>
+            <div className="text-2xl font-bold">{totalStats.newsViews}</div>
             <p className="text-xs text-muted-foreground">
-              좋아요: {data.stats.totalNewsLikes}
+              뉴스 게시물 수: {totalStats.newsCount}
             </p>
           </CardContent>
         </Card>
@@ -162,9 +159,9 @@ export default function AdminDashboardPage() {
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.stats.totalESGViews}</div>
+            <div className="text-2xl font-bold">{totalStats.esgViews}</div>
             <p className="text-xs text-muted-foreground">
-              좋아요: {data.stats.totalESGLikes}
+              ESG 게시물 수: {totalStats.esgCount}
             </p>
           </CardContent>
         </Card>
@@ -173,23 +170,39 @@ export default function AdminDashboardPage() {
       <div className="mt-6">
         <h2 className="text-lg font-semibold mb-4">최근 게시물</h2>
         <div className="space-y-4">
-          {data.recentPosts.map((post) => (
+          {recentNews.map((post) => (
             <div key={post._id} className="flex items-center justify-between p-4 bg-white rounded-lg shadow">
               <div>
-                <h3 className="font-medium">{post.title}</h3>
+                <h3 className="font-medium">{post.title.ko}</h3>
                 <p className="text-sm text-gray-500">
-                  {post.type === 'news' ? '뉴스' : 'ESG'} - {post.category}
+                  뉴스 - {post.category}
                 </p>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-sm text-gray-500">
-                  조회수: {post.views}
+                  조회수: {post.viewCount}
                 </div>
                 <div className="text-sm text-gray-500">
-                  좋아요: {post.likes}
+                  {new Date(post.publishedAt).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {recentESG.map((post) => (
+            <div key={post._id} className="flex items-center justify-between p-4 bg-white rounded-lg shadow">
+              <div>
+                <h3 className="font-medium">{post.title.ko}</h3>
+                <p className="text-sm text-gray-500">
+                  ESG - {post.esgType}
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-500">
+                  조회수: {post.viewCount}
                 </div>
                 <div className="text-sm text-gray-500">
-                  {new Date(post.publishDate).toLocaleDateString()}
+                  {new Date(post.publishedAt).toLocaleDateString()}
                 </div>
               </div>
             </div>
@@ -204,7 +217,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {data.categories.news.map((category) => (
+              {newsStats.map((category) => (
                 <div key={category._id} className="flex justify-between items-center">
                   <span className="text-sm font-medium">{category._id}</span>
                   <span className="text-sm text-gray-500">{category.count}개</span>
@@ -220,7 +233,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {data.categories.esg.map((category) => (
+              {esgStats.map((category) => (
                 <div key={category._id} className="flex justify-between items-center">
                   <span className="text-sm font-medium">{category._id}</span>
                   <span className="text-sm text-gray-500">{category.count}개</span>
@@ -294,3 +307,4 @@ function calculateAverage(items: any[], field: string): string {
   const sum = items.reduce((acc, item) => acc + item[field], 0);
   return (sum / items.length).toFixed(0);
 }
+

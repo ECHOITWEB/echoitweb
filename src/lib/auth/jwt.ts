@@ -60,7 +60,7 @@ export function generateAccessToken(user: UserAuthInfo): string {
     type: TokenType.ACCESS
   };
   
-  const options: SignOptions = { expiresIn: JWT_EXPIRY };
+  const options: SignOptions = { expiresIn: JWT_EXPIRY as any };
   
   return jwt.sign(payload, JWT_SECRET, options);
 }
@@ -86,7 +86,7 @@ export function generateRefreshToken(user: UserAuthInfo): string {
     type: TokenType.REFRESH
   };
   
-  const options: SignOptions = { expiresIn: JWT_REFRESH_EXPIRY };
+  const options: SignOptions = { expiresIn: JWT_REFRESH_EXPIRY as any };
   
   return jwt.sign(payload, JWT_SECRET, options);
 }

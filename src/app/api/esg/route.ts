@@ -85,13 +85,13 @@ export async function GET(req: NextRequest) {
 /**
  * 새 ESG 게시물 생성 API - 편집자 이상 권한 필요
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<Response> {
   const authReq = req as AuthenticatedRequest;
 
   // 편집자 이상 권한 체크
   const authResult = await requireEditor(authReq);
   if (authResult) {
-    return authResult;
+    return NextResponse.json(authResult);
   }
 
   try {
