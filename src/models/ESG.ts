@@ -16,4 +16,10 @@ const esgSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 })
 
-export default mongoose.models.ESG || mongoose.model('ESG', esgSchema) 
+// 인덱스 추가
+esgSchema.index({ category: 1 });
+esgSchema.index({ date: -1 });
+esgSchema.index({ isMainFeatured: 1 });
+
+// 모델명을 소문자 복수형으로 변경
+export default mongoose.models.esgs || mongoose.model('esgs', esgSchema) 

@@ -106,19 +106,61 @@ export default function UserManagementPage() {
   const refreshToken = async (): Promise<string | null> => {
     try {
       console.log('토큰 갱신 시도 중...');
+      
+      // 로컬 스토리지에서 리프레시 토큰 가져오기
+      const sessionStr = localStorage.getItem('echoit_auth_token');
+      if (!sessionStr) {
+        console.error('저장된 인증 정보가 없습니다.');
+        return null;
+      }
+      
+      let refreshTokenValue = null;
+      try {
+        const session = JSON.parse(sessionStr);
+        refreshTokenValue = session?.refreshToken;
+        
+        if (!refreshTokenValue) {
+          console.error('리프레시 토큰이 없습니다.');
+          return null;
+        }
+      } catch (e) {
+        console.error('세션 파싱 오류:', e);
+        return null;
+      }
+      
+      // 토큰 갱신 요청
+      console.log('토큰 갱신 API 요청 시작');
       const response = await fetch('/api/auth/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ refreshToken: refreshTokenValue }),
         credentials: 'include',
+        cache: 'no-store' // 캐시 방지
       });
       
+      console.log('토큰 갱신 응답 상태:', response.status, response.statusText);
+      
       if (!response.ok) {
+        // 오류 응답 로깅
+        try {
+          const errorText = await response.text();
+          console.error('토큰 갱신 오류 응답:', errorText);
+        } catch (e) {
+          console.error('토큰 갱신 오류 응답 파싱 실패');
+        }
         throw new Error(`토큰 갱신 실패: ${response.status}`);
       }
       
-      const data = await response.json();
+      // 응답 데이터 로깅
+      const responseText = await response.text();
+      console.log('토큰 갱신 응답 데이터:', responseText);
+      
+      // JSON 파싱
+      const data = responseText ? JSON.parse(responseText) : {};
+      
+      console.log('파싱된 토큰 데이터:', data);
       
       if (data.success && data.accessToken) {
         // 로컬 스토리지에 새 토큰 저장
@@ -127,13 +169,19 @@ export default function UserManagementPage() {
           try {
             const session = JSON.parse(sessionStr);
             session.accessToken = data.accessToken;
+            // 리프레시 토큰도 새로 갱신되었다면 저장
+            if (data.refreshToken) {
+              session.refreshToken = data.refreshToken;
+            }
             localStorage.setItem('echoit_auth_token', JSON.stringify(session));
-            console.log('토큰 갱신 성공');
+            console.log('토큰 갱신 성공, 로컬 스토리지 업데이트 완료');
             return data.accessToken;
           } catch (e) {
-            console.error('세션 파싱 오류:', e);
+            console.error('세션 업데이트 오류:', e);
           }
         }
+      } else {
+        console.error('토큰 갱신 응답에 accessToken이 없음:', data);
       }
       
       return null;
@@ -171,232 +219,84 @@ export default function UserManagementPage() {
   };
 
   // 사용자 목록 가져오기
-  const fetchUsers = async () => {
+  const fetchUsers = async (attemptTokenRefresh = true) => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError('');
+      const headers = await getAuthHeader();
+      console.log('사용자 목록 요청 헤더:', headers);
       
-      console.log('사용자 목록 가져오기 시작');
+      const response = await fetch('/api/users', {
+        method: 'GET',
+        headers,
+        cache: 'no-store'
+      });
       
-      // 로컬 스토리지에서 토큰 확인
-      let token = null;
-      if (typeof window !== 'undefined') {
+      console.log('API 응답 상태:', response.status, response.statusText);
+      
+      if (!response.ok) {
+        console.error('API 응답 오류:', response.status, response.statusText);
+        
+        // 토큰 디버깅을 위한 추가 정보
         const sessionStr = localStorage.getItem('echoit_auth_token');
         if (sessionStr) {
           try {
             const session = JSON.parse(sessionStr);
-            token = session?.accessToken;
-            console.log('인증 토큰 확인:', token ? '토큰 있음' : '토큰 없음');
+            console.log('저장된 토큰 정보:', {
+              accessToken: session.accessToken ? `${session.accessToken.substring(0, 10)}...` : 'none',
+              refreshToken: session.refreshToken ? `${session.refreshToken.substring(0, 10)}...` : 'none'
+            });
           } catch (e) {
-            console.error('토큰 파싱 오류:', e);
+            console.error('토큰 디버깅 오류:', e);
           }
         }
-      }
-      
-      // API 요청 헤더 설정
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      console.log('API 요청 헤더:', headers);
-      
-      // API 요청 시도
-      let responseData;
-      let apiError = null;
-      
-      try {
-        console.log('사용자 API 요청 시작: /api/users');
-        const response = await fetch('/api/users', {
-          method: 'GET',
-          headers,
-          cache: 'no-store'
-        });
         
-        console.log('API 응답 상태:', response.status, response.statusText);
-        
-        if (!response.ok) {
-          throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
+        // 401 에러(인증 만료)면 토큰 갱신 후 재시도
+        if (response.status === 401 && attemptTokenRefresh) {
+          console.log('401 오류 발생, 토큰 갱신 시도');
+          const refreshed = await refreshToken();
+          if (refreshed) {
+            console.log('토큰 갱신 성공, 요청 재시도');
+            return fetchUsers(false); // 재귀 호출 시 토큰 갱신 시도 방지
+          } else {
+            throw new Error('토큰 갱신에 실패했습니다.');
+          }
         }
         
-        responseData = await response.json();
-        console.log('API 응답 데이터:', JSON.stringify(responseData, null, 2));
-      } catch (err) {
-        console.error('API 요청 실패:', err);
-        apiError = err instanceof Error ? err : new Error('알 수 없는 API 요청 오류');
-        responseData = null;
+        throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
       }
       
-      // 유효한 API 응답 처리
-      if (responseData && (responseData.success || responseData.users || responseData.data)) {
-        let userData: ExtendedUserInfo[] = [];
-        
-        if (responseData.users && Array.isArray(responseData.users)) {
-          console.log(`사용자 ${responseData.users.length}명 로드 완료`);
-          userData = responseData.users;
-        } else if (responseData.data?.users && Array.isArray(responseData.data.users)) {
-          console.log(`사용자 ${responseData.data.users.length}명 로드 완료`);
-          userData = responseData.data.users;
-        } else if (Array.isArray(responseData.data)) {
-          console.log(`사용자 ${responseData.data.length}명 로드 완료`);
-          userData = responseData.data;
-        }
-        
-        // 데이터 있으면 처리
-        if (userData.length > 0) {
-          // 이름 형식 확인 및 처리
-          const processedUsers = userData.map(user => {
-            // 이름이 문자열로 온 경우 객체로 변환
-            if (typeof user.name === 'string') {
-              return {
-                ...user,
-                name: { first: user.name, last: '' }
-              };
-            }
-            return user;
-          });
-          
-          console.log(`처리된 사용자 데이터: ${processedUsers.length}명`);
-          setUsers(processedUsers);
-          return; // 성공적으로 데이터를 가져온 경우 여기서 종료
-        }
-        
-        console.log('API에서 유효한 사용자 데이터를 찾을 수 없음, 샘플 데이터 사용');
-      } else if (apiError) {
-        console.error('API 오류로 인한 기본 사용자 데이터 사용');
-        setError(`사용자 데이터를 가져오는 중 오류가 발생했습니다. (${apiError.message})`);
-      } else {
-        console.warn('API 응답 형식 문제로 기본 사용자 데이터 사용');
-        setError('서버에서 예상된 형식의 사용자 데이터를 받지 못했습니다.');
+      // 응답 내용 로깅 (디버깅 용도)
+      const responseText = await response.text();
+      console.log('API 응답 데이터:', responseText);
+      
+      // JSON으로 다시 파싱
+      const data = responseText ? JSON.parse(responseText) : {};
+      
+      console.log('파싱된 사용자 데이터:', data);
+      
+      if (!data || !data.users || !Array.isArray(data.users)) {
+        console.error('유효하지 않은 사용자 데이터:', data);
+        setUsers([]);
+        setLoading(false);
+        setError('유효하지 않은 사용자 데이터 형식입니다.');
+        return;
       }
       
-      // 오류 발생, API 요청 실패 또는 데이터가 없는 경우 기본 사용자 데이터 사용
-      console.log('기본 사용자 데이터 사용');
-      const defaultUsers: ExtendedUserInfo[] = [
-        {
-          id: 'default-admin',
-          username: 'admin',
-          email: 'admin@echoit.co.kr',
-          name: { first: '관리자', last: '' },
-          role: 'admin' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-news',
-          username: 'newsmanager',
-          email: 'news@echoit.co.kr',
-          name: { first: '뉴스 관리자', last: '' },
-          role: 'editor' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-esg',
-          username: 'esgmanager',
-          email: 'esg@echoit.co.kr',
-          name: { first: 'ESG 관리자', last: '' },
-          role: 'editor' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-ellie',
-          username: 'ellie',
-          email: 'ellie@echoit.co.kr',
-          name: { first: '엘리', last: '' },
-          role: 'editor' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-user1',
-          username: 'user1',
-          email: 'user1@echoit.co.kr',
-          name: { first: '일반', last: '사용자' },
-          role: 'viewer' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-user2',
-          username: 'user2',
-          email: 'user2@echoit.co.kr',
-          name: { first: '테스트', last: '계정' },
-          role: 'viewer' as UserRole,
-          isActive: false,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      ];
+      // 사용자 데이터 처리 로직은 그대로 유지
+      const processedUsers = data.users.map((user: any) => ({
+        ...user,
+        name: user.name || '이름 없음',
+        createdAt: user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-',
+        lastLogin: user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : '-',
+      }));
       
-      setUsers(defaultUsers);
+      console.log('처리된 사용자 데이터:', processedUsers);
+      setUsers(processedUsers);
     } catch (error) {
-      console.error('사용자 목록 가져오기 오류:', error);
-      setError('사용자 목록을 가져오는 중 오류가 발생했습니다.');
-      
-      // 에러 발생 시 기본 사용자 데이터 표시
-      console.log('에러 발생으로 인한 기본 사용자 계정 추가');
-      setUsers([
-        {
-          id: 'default-admin',
-          username: 'admin',
-          email: 'admin@echoit.co.kr',
-          name: { first: '관리자', last: '' },
-          role: 'admin' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-news',
-          username: 'newsmanager',
-          email: 'news@echoit.co.kr',
-          name: { first: '뉴스 관리자', last: '' },
-          role: 'editor' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-esg',
-          username: 'esgmanager',
-          email: 'esg@echoit.co.kr',
-          name: { first: 'ESG 관리자', last: '' },
-          role: 'editor' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: 'default-ellie',
-          username: 'ellie',
-          email: 'ellie@echoit.co.kr',
-          name: { first: '엘리', last: '' },
-          role: 'editor' as UserRole,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      ]);
+      console.error('사용자 데이터 가져오기 오류:', error);
+      setUsers([]);
+      setError(`사용자 데이터를 가져오는 중 오류가 발생했습니다. (${error instanceof Error ? error.message : '알 수 없는 오류'})`);
     } finally {
       setLoading(false);
     }
@@ -404,7 +304,34 @@ export default function UserManagementPage() {
 
   // 컴포넌트 마운트 시 사용자 목록 로드
   useEffect(() => {
-    fetchUsers();
+    // 페이지 로드 시 강제로 토큰 갱신 후 사용자 목록 로드
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        
+        // 먼저 토큰 갱신을 시도
+        console.log('페이지 로드 시 토큰 갱신 시도');
+        const newToken = await refreshToken();
+        
+        if (newToken) {
+          console.log('토큰 갱신 성공, 사용자 목록 로드 시도');
+          // 약간의 지연을 두고 데이터 로드 (토큰이 서버에 반영될 시간 확보)
+          setTimeout(() => {
+            fetchUsers(false); // 갱신 후 재시도하지 않음
+          }, 500);
+        } else {
+          console.log('토큰 갱신 실패, 기존 토큰으로 시도');
+          fetchUsers();
+        }
+      } catch (error) {
+        console.error('초기 데이터 로드 오류:', error);
+        setError('초기 데이터 로드 중 오류가 발생했습니다.');
+        setLoading(false);
+      }
+    };
+    
+    loadData();
   }, []);
 
   // 입력 필드 변경 처리
@@ -507,16 +434,18 @@ export default function UserManagementPage() {
       setSuccess('');
       setError('');
       
-      console.log('사용자 업데이트 시작:', user.id);
+      console.log('사용자 업데이트 시작:', user.id, '업데이트 데이터:', JSON.stringify(user));
       
       // 헤더 가져오기
       let headers = await getAuthHeader();
+      headers['Content-Type'] = 'application/json';
       
       // 첫번째 시도
       let response = await fetch(`/api/users/${user.id}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(user)
+        body: JSON.stringify(user),
+        cache: 'no-store' // 캐시 방지
       });
       
       // 토큰 만료로 401 오류 발생 시 토큰 갱신 후 재시도
@@ -531,23 +460,35 @@ export default function UserManagementPage() {
           response = await fetch(`/api/users/${user.id}`, {
             method: 'PUT',
             headers,
-            body: JSON.stringify(user)
+            body: JSON.stringify(user),
+            cache: 'no-store' // 캐시 방지
           });
         } else {
           throw new Error('토큰 갱신 실패');
         }
       }
       
+      // 응답 텍스트로 먼저 받아서 로깅
+      const responseText = await response.text();
+      console.log('서버 응답 텍스트:', responseText);
+      
       if (!response.ok) {
         throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      // 텍스트를 JSON으로 파싱
+      const data = responseText ? JSON.parse(responseText) : {};
+      console.log('파싱된 응답 데이터:', data);
       
       if (data.success) {
         setSuccess('사용자 정보가 성공적으로 업데이트되었습니다.');
         setEditingUser(null);
-        fetchUsers(); // 사용자 목록 갱신
+        
+        // 짧은 지연 후 사용자 목록 새로고침 (DB 반영 시간 고려)
+        setTimeout(() => {
+          console.log('사용자 목록 강제 새로고침');
+          fetchUsers(false);
+        }, 500);
       } else {
         setError(data.message || '사용자 정보 업데이트에 실패했습니다.');
       }
@@ -684,25 +625,28 @@ export default function UserManagementPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+              <thead className="bg-gray-100 dark:bg-gray-900">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    사용자
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    이름/이메일
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    사용자 아이디
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     역할
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     상태
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    생성일
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    가입일
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     최근 로그인
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    작업
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    관리
                   </th>
                 </tr>
               </thead>
@@ -730,6 +674,14 @@ export default function UserManagementPage() {
                             placeholder="이름"
                           />
                           <input
+                            type="text"
+                            value={editingUser.username}
+                            onChange={(e) => setEditingUser({...editingUser, username: e.target.value})}
+                            className="border rounded-md py-1 px-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                            placeholder="사용자 아이디"
+                            disabled={user.username === 'admin'} // admin 계정은 아이디 변경 불가
+                          />
+                          <input
                             type="email"
                             value={editingUser.email}
                             onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
@@ -738,15 +690,15 @@ export default function UserManagementPage() {
                           />
                         </div>
                       ) : (
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center">
-                            <span className="text-gray-600 dark:text-gray-300 font-medium text-lg">
-                              {getNameInitial(user.name)}
-                            </span>
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0">
+                            <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 text-xl uppercase">
+                              {getFirstName(user.name).charAt(0)}
+                            </div>
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {getDisplayName(user.name)} ({user.username})
+                              {getFirstName(user.name)}
                             </div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">
                               {user.email}
@@ -754,6 +706,11 @@ export default function UserManagementPage() {
                           </div>
                         </div>
                       )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {user.username}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {editingUser && editingUser.id === user.id ? (

@@ -1,0 +1,172 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+다음은 MongoDB 기반의 백엔드를 위한 명확한 개발 규칙입니다.  
+(Cursor에 추가할 수 있도록 영어로 작성합니다.)
+
+---
+
+# 📌 Cursor Backend Development Rules (MongoDB-based)
+
+### ✅ Core Tech Stack & Guidelines
+- **Database**: MongoDB
+- **Language**: Node.js + TypeScript (recommended)
+- **Package Manager**: npm exclusively (no `yarn`, `pnpm`)
+
+> **Note**: Other backend frameworks (Express, NestJS, Fastify, etc.) are not yet finalized.
+
+---
+
+## 🔹 Database Rules (MongoDB)
+
+- **Naming Conventions**
+  ```plaintext
+  - Collections: lowercase and plural (e.g., users, posts, comments)
+  - Fields: camelCase (e.g., createdAt, updatedAt, userId)
+  ```
+
+- **Schema Management**
+  ```plaintext
+  - Use Mongoose ODM exclusively for schema enforcement and validation.
+  - Define explicit schemas with TypeScript interfaces or classes.
+  ```
+
+- **Index Management**
+  ```plaintext
+  - Always create indexes for frequently queried fields (e.g., userId, email).
+  - Use compound indexes for complex queries.
+  ```
+
+- **Relationships**
+  ```plaintext
+  - Prefer referencing (ObjectIds) instead of embedding documents for relational data.
+  - Avoid deeply nested structures (> 3 levels).
+  ```
+
+---
+
+## 🔹 API Design Guidelines
+
+- **REST API Standards**
+  ```plaintext
+  - RESTful design principles enforced strictly.
+  - Clear HTTP status codes: 200, 201, 400, 401, 403, 404, 409, 500.
+  ```
+
+- **Endpoint Naming**
+  ```plaintext
+  - Endpoint paths: plural nouns, kebab-case (e.g., `/api/users`, `/api/posts`)
+  - CRUD actions represented by HTTP methods (GET, POST, PUT, DELETE).
+  ```
+
+- **Request & Response Structures**
+  ```plaintext
+  - Consistent JSON-based API responses.
+  - Always return standardized error responses:
+    { "error": { "message": "", "code": "" } }
+  ```
+
+---
+
+## 🔹 TypeScript Usage
+
+- **Strict Typing**
+  ```plaintext
+  - Mandatory explicit typing for request handlers, responses, and models.
+  - Prohibit usage of `any` and `unknown` (exceptions require inline documentation).
+  ```
+
+- **Interfaces and Types**
+  ```plaintext
+  - Use interfaces or types clearly defined for data models.
+  - Shared DTO (Data Transfer Object) types across frontend and backend recommended.
+  ```
+
+---
+
+## 🔹 Security Practices
+
+- **Environment Variables**
+  ```plaintext
+  - Use `.env` files or environment-specific configurations.
+  - Do not commit sensitive data or secrets into Git repositories.
+  ```
+
+- **Authentication & Authorization**
+  ```plaintext
+  - JWT recommended for authentication.
+  - Explicit middleware for role-based authorization (RBAC).
+  ```
+
+- **Data Validation & Sanitization**
+  ```plaintext
+  - Always validate inputs (e.g., `zod`, `Joi`).
+  - Protect endpoints against common vulnerabilities (XSS, injection attacks).
+  ```
+
+---
+
+## 🔹 Logging & Error Handling
+
+- **Standardized Logging**
+  ```plaintext
+  - Use structured logging libraries (e.g., Winston or Pino).
+  - Log meaningful context for debugging (timestamps, request IDs, user context).
+  ```
+
+- **Global Error Handling**
+  ```plaintext
+  - Implement global error-handling middleware to ensure uniform error responses.
+  - Avoid uncaught exceptions by using `try-catch` blocks around async operations.
+  ```
+
+---
+
+## 🔹 npm & Project Management Rules
+
+- **npm Scripts Standards**
+  ```json
+  "scripts": {
+    "dev": "nodemon src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write ."
+  }
+  ```
+
+- **Dependency Management**
+  ```plaintext
+  - Keep dependencies minimal, regularly audit dependencies (`npm audit`).
+  - Include `package-lock.json` in Git repository for stability.
+  ```
+
+---
+
+## 🔹 Git Workflow (Backend-specific)
+
+- **Branching Strategy**
+  ```plaintext
+  - Follow naming convention: `feature/{name}`, `fix/{name}`, `hotfix/{name}`.
+  - Clearly document purpose of each commit.
+  ```
+
+- **Code Reviews**
+  ```plaintext
+  - Mandatory code reviews: minimum of 1 approval before merging PRs.
+  - Automated checks for ESLint and Prettier violations during PR.
+  ```
+
+---
+
+## 🚩 Objectives of these Backend Rules
+- Ensure database schema stability and data integrity.
+- Establish clear and consistent API structures.
+- Strengthen backend security and reliability.
+- Improve maintainability and scalability of backend architecture.
+
+---
+
+이 규칙을 Cursor에 추가하여 MongoDB 기반의 명확하고 안정적인 백엔드 개발 환경을 유지할 수 있습니다.

@@ -47,6 +47,7 @@ export interface UserUpdateData {
   name?: string | UserName;
   role?: string;
   isActive?: boolean;
+  username?: string;
 }
 
 /**
@@ -324,26 +325,60 @@ class UserService {
    */
   async updateUser(userId: string, userData: UserUpdateData): Promise<SafeUser> {
     await this.ensureDbConnection();
+    console.log(`사용자 정보 업데이트 시작 (ID: ${userId})`, userData);
 
     // 대상 사용자 존재 확인
     const user = await User.findById(userId);
     if (!user) {
+      console.log(`사용자를 찾을 수 없음 (ID: ${userId})`);
       throw new Error('사용자를 찾을 수 없습니다.');
     }
 
+    console.log(`기존 사용자 정보:`, {
+      id: userId,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive
+    });
+
     // 기본 관리자('admin' 사용자)의 역할 변경 방지
     if (user.username === 'admin' && userData.role && userData.role !== UserRole.ADMIN) {
+      console.log('기본 관리자 역할 변경 시도 차단');
       throw new Error('기본 관리자의 역할은 변경할 수 없습니다.');
+    }
+
+    // username 중복 확인 (추가된 부분)
+    if (userData.username && userData.username !== user.username) {
+      // 기본 관리자('admin')의 사용자명 변경 방지
+      if (user.username === 'admin') {
+        console.log('기본 관리자 사용자 아이디 변경 시도 차단');
+        throw new Error('기본 관리자의 사용자 아이디는 변경할 수 없습니다.');
+      }
+
+      console.log(`사용자 아이디 변경 시도: ${user.username} -> ${userData.username}`);
+      const existingUser = await User.findOne({
+        username: userData.username,
+        _id: { $ne: userId }
+      });
+
+      if (existingUser) {
+        console.log(`중복된 사용자 아이디 존재: ${userData.username}`);
+        throw new Error('이미 사용 중인 사용자 아이디입니다.');
+      }
     }
 
     // 이메일 중복 확인
     if (userData.email && userData.email !== user.email) {
+      console.log(`이메일 변경 시도: ${user.email} -> ${userData.email}`);
       const existingUser = await User.findOne({
         email: userData.email,
         _id: { $ne: userId }
       });
 
       if (existingUser) {
+        console.log(`중복된 이메일 존재: ${userData.email}`);
         throw new Error('이미 사용 중인 이메일 주소입니다.');
       }
     }
@@ -351,40 +386,72 @@ class UserService {
     // 업데이트할 데이터 준비
     const updateData: any = {};
     
+    // 사용자명 업데이트 (추가된 부분)
+    if (userData.username) {
+      updateData.username = userData.username;
+      console.log(`사용자 아이디 업데이트: ${userData.username}`);
+    }
+    
     // 이메일 업데이트
     if (userData.email) {
       updateData.email = userData.email;
+      console.log(`이메일 업데이트: ${userData.email}`);
     }
     
     // 이름 업데이트
     if (userData.name) {
       updateData.name = userData.name;
+      console.log(`이름 업데이트:`, userData.name);
     }
     
     // 역할 업데이트
     if (userData.role) {
       if (!Object.values(UserRole).includes(userData.role as UserRole)) {
+        console.log(`유효하지 않은 역할: ${userData.role}`);
         throw new Error('유효하지 않은 사용자 역할입니다.');
       }
       updateData.role = userData.role;
       updateData.roles = [userData.role]; // roles 배열도 함께 업데이트
+      console.log(`역할 업데이트: ${userData.role}`);
     }
     
     // 활성 상태 업데이트
     if (userData.isActive !== undefined) {
       updateData.isActive = userData.isActive;
+      console.log(`활성 상태 업데이트: ${userData.isActive}`);
     }
     
     // 비밀번호 업데이트 (제공된 경우에만)
     if (userData.password && userData.password.trim() !== '') {
       user.password = userData.password; // 모델에서 저장 전에 해시됨
+      console.log(`비밀번호 업데이트됨`);
     }
+
+    console.log(`최종 업데이트할 데이터:`, updateData);
 
     // 사용자 정보 업데이트
     Object.assign(user, updateData);
-    await user.save();
     
-    return this.createSafeUser(user);
+    try {
+      await user.save();
+      console.log(`사용자 정보 저장 완료 (ID: ${userId})`);
+      
+      // 저장 후 사용자 재조회하여 확인 
+      const updatedUser = await User.findById(userId);
+      console.log(`저장 후 사용자 정보:`, {
+        id: userId,
+        username: updatedUser?.username,
+        email: updatedUser?.email,
+        name: updatedUser?.name,
+        role: updatedUser?.role,
+        isActive: updatedUser?.isActive
+      });
+      
+      return this.createSafeUser(user);
+    } catch (error) {
+      console.error(`사용자 정보 저장 실패 (ID: ${userId}):`, error);
+      throw error;
+    }
   }
 
   /**

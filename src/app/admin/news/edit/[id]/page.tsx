@@ -2,88 +2,93 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Editor } from '@tinymce/tinymce-react';
-import { useForm, Controller } from 'react-hook-form';
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { TinyEditor } from '@/components/editor/tiny-editor';
+import FileUpload from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from '@/hooks/use-toast';
+import { AuthorSelect } from '@/components/forms/author-select';
+import { AlertCircle, Check, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import dynamic from 'next/dynamic';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ToastAction } from "@/components/ui/toast";
-import { toast } from "@/components/ui/use-toast";
-import { AlertCircle, Check, Edit, Loader2 } from 'lucide-react';
+
+// Tagify 컴포넌트 동적 임포트
+const TagifyComponent = dynamic(() => 
+  import('@yaireo/tagify/dist/react.tagify').then((mod) => mod.default), 
+  { ssr: false }
+);
+
+// CSS 클라이언트 사이드에서만 로드
+const TagifyCss = (): null => {
+  useEffect(() => {
+    import('@yaireo/tagify/dist/tagify.css');
+  }, []);
+  return null;
+};
 
 // 뉴스 카테고리 목록
 const CATEGORIES = [
-  { value: 'company', label: '회사소식' },
-  { value: 'product', label: '제품' },
-  { value: 'award', label: '수상' },
-  { value: 'media', label: '미디어' },
+  { value: 'tech', label: '기술' },
+  { value: 'industry', label: '산업' },
+  { value: 'company', label: '기업' },
+  { value: 'finance', label: '금융' },
+  { value: 'policy', label: '정책' },
   { value: 'event', label: '이벤트' },
   { value: 'other', label: '기타' }
 ] as const;
 
 type CategoryType = typeof CATEGORIES[number]['value'];
 
-// 작성자 부서 목록
+// 부서 목록
 const DEPARTMENTS = [
-  { value: 'ESG 경영팀', label: 'ESG 경영팀' },
-  { value: '사회공헌팀', label: '사회공헌팀' },
-  { value: '기술연구소', label: '기술연구소' },
-  { value: '인사팀', label: '인사팀' },
-  { value: '운영자', label: '운영자' },
-  { value: '편집자', label: '편집자' },
-  { value: '일반 사용자', label: '일반 사용자' },
-  { value: '직접 입력', label: '직접 입력' }
+  { value: 'tech_team', label: '기술팀' },
+  { value: 'management', label: '경영진' },
+  { value: 'marketing', label: '마케팅' },
+  { value: 'sales', label: '영업' },
+  { value: 'hr', label: '인사' },
+  { value: 'operation', label: '운영' },
+  { value: 'other', label: '기타' }
 ] as const;
 
 type DepartmentType = typeof DEPARTMENTS[number]['value'];
 
-// 폼 데이터 타입 정의
 interface NewsFormData {
-  title: {
-    ko: string;
-    en: string;
-  };
-  summary: {
-    ko: string;
-    en: string;
-  };
-  content: {
-    ko: string;
-    en: string;
-  };
+  title: string;
+  summary: string;
+  content: string;
   category: CategoryType;
-  author: {
-    department: DepartmentType;
-    name: string;
-  };
-  publishDate: string;
+  author: string;
+  publishDate: Date;
   imageSource: string;
+  authorDepartment: DepartmentType;
+  tags: string[];
+  originalUrl: string;
   isPublished: boolean;
   isMainFeatured: boolean;
 }
 
+interface FormError {
+  field: string;
+  message: string;
+}
+
+interface TagifyEvent {
+  detail: {
+    tagify: {
+      value: Array<{
+        value: string;
+        [key: string]: unknown;
+      }>;
+    };
+  };
+}
+
 // API 응답 타입
 interface NewsPost {
+  _id?: string;
   title?: {
     ko: string;
     en: string;
@@ -98,13 +103,16 @@ interface NewsPost {
   };
   category?: string;
   author?: {
-    department: string;
-    name: string;
+    _id?: string;
+    department?: string;
+    name?: string;
   };
   publishDate?: string;
   imageSource?: string;
   isPublished?: boolean;
   isMainFeatured?: boolean;
+  tags?: string[];
+  originalUrl?: string;
 }
 
 interface NewsApiResponse {
@@ -115,20 +123,16 @@ interface NewsApiResponse {
 
 // 토큰을 가져오는 함수
 function getToken(): string | null {
-  // localStorage에서 토큰 시도
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken');
-    if (token) return token;
-    
-    try {
-      const sessionStr = localStorage.getItem('echoit_auth_token');
-      if (sessionStr) {
-        const session = JSON.parse(sessionStr);
-        if (session?.accessToken) return session.accessToken;
-      }
-    } catch (e) {
-      console.error('세션 파싱 오류:', e);
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const sessionStr = localStorage.getItem('echoit_auth_token');
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      return session.accessToken || null;
     }
+  } catch (e) {
+    console.error('세션 파싱 오류:', e);
   }
   
   return null;
@@ -144,319 +148,232 @@ function LoadingSpinner(): JSX.Element {
   );
 }
 
-// 뉴스 편집 폼 컴포넌트
+// 폼 컴포넌트
 function NewsEditForm({
-  form,
-  activeTab,
-  setActiveTab,
-  isSaving,
-  onSubmit,
-  handleGoBack,
+  formData,
+  setFormData,
+  handleSubmit,
+  isSubmitting,
+  errors,
+  selectedAuthor,
+  handleAuthorChange,
+  handleTagChange
 }: {
-  form: ReturnType<typeof useForm<NewsFormData>>;
-  activeTab: string;
-  setActiveTab: React.Dispatch<React.SetStateAction<string>>;
-  isSaving: boolean;
-  onSubmit: (data: NewsFormData) => Promise<void>;
-  handleGoBack: () => void;
+  formData: NewsFormData;
+  setFormData: React.Dispatch<React.SetStateAction<NewsFormData>>;
+  handleSubmit: (e: React.FormEvent) => Promise<void>;
+  isSubmitting: boolean;
+  errors: FormError[];
+  selectedAuthor: string;
+  handleAuthorChange: (authorId: string) => void;
+  handleTagChange: (e: TagifyEvent) => void;
 }): JSX.Element {
+  // Tagify 설정
+  const tagifySettings = {
+    maxTags: 10,
+    placeholder: "예: AI, 블록체인, 핀테크",
+    delimiters: ",",
+    dropdown: {
+      enabled: 0
+    }
+  };
+
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Tabs defaultValue="ko" value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex justify-between items-center mb-2">
-            <TabsList>
-              <TabsTrigger value="ko">한국어</TabsTrigger>
-              <TabsTrigger value="en">영어</TabsTrigger>
-            </TabsList>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="isPublished"
-                  checked={form.watch('isPublished')}
-                  onCheckedChange={(checked) => form.setValue('isPublished', checked)}
-                />
-                <Label htmlFor="isPublished">
-                  {form.watch('isPublished') ? '공개 중' : '비공개'}
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="isMainFeatured"
-                  checked={form.watch('isMainFeatured')}
-                  onCheckedChange={(checked) => form.setValue('isMainFeatured', checked)}
-                />
-                <Label htmlFor="isMainFeatured">
-                  {form.watch('isMainFeatured') ? '메인 노출' : '메인 비노출'}
-                </Label>
-              </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <TagifyCss />
+      <h1 className="text-2xl font-bold mb-6">뉴스 수정</h1>
+      
+      {errors.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3" />
+            <div>
+              <h3 className="text-lg font-medium text-red-800">
+                입력 오류가 있습니다
+              </h3>
+              <ul className="mt-2 text-sm text-red-700">
+                {errors.map((error, index) => (
+                  <li key={index}>{error.message}</li>
+                ))}
+              </ul>
             </div>
           </div>
-          
-          <TabsContent value="ko" className="space-y-6">
-            <FormField
-              control={form.control}
-              name="title.ko"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>제목 (한국어) *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="제목을 입력하세요" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="summary.ko"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>요약 (한국어) *</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="뉴스 요약을 입력하세요" 
-                      className="min-h-[100px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="content.ko"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>내용 (한국어) *</FormLabel>
-                  <FormControl>
-                    <Controller
-                      name="content.ko"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Editor
-                          apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
-                          value={field.value}
-                          onEditorChange={(content: string) => field.onChange(content)}
-                          init={{
-                            height: 500,
-                            menubar: true,
-                            plugins: [
-                              'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                              'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                              'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-                            ],
-                            toolbar:
-                              'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
-                            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
-                          }}
-                        />
-                      )}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </TabsContent>
-          
-          <TabsContent value="en" className="space-y-6">
-            <FormField
-              control={form.control}
-              name="title.en"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title (English)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter title" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="summary.en"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Summary (English)</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Enter news summary" 
-                      className="min-h-[100px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="content.en"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Content (English)</FormLabel>
-                  <FormControl>
-                    <Controller
-                      name="content.en"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Editor
-                          apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
-                          value={field.value}
-                          onEditorChange={(content: string) => field.onChange(content)}
-                          init={{
-                            height: 500,
-                            menubar: true,
-                            plugins: [
-                              'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                              'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                              'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-                            ],
-                            toolbar:
-                              'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
-                            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
-                          }}
-                        />
-                      )}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </TabsContent>
-        </Tabs>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>카테고리 *</FormLabel>
-                <Select 
-                  value={field.value} 
-                  onValueChange={field.onChange}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="카테고리 선택" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {CATEGORIES.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        {category.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="publishDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>발행일 *</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="author.department"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>작성자 부서 *</FormLabel>
-                <Select 
-                  value={field.value} 
-                  onValueChange={field.onChange}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="부서 선택" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {DEPARTMENTS.map((dept) => (
-                      <SelectItem key={dept.value} value={dept.value}>
-                        {dept.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="author.name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>작성자 이름 *</FormLabel>
-                <FormControl>
-                  <Input placeholder="작성자 이름" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <FormField
-          control={form.control}
-          name="imageSource"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>이미지 URL</FormLabel>
-              <FormControl>
-                <Input placeholder="이미지 URL을 입력하세요" {...field} />
-              </FormControl>
-              <FormDescription>
-                뉴스 썸네일로 사용될 이미지의 URL을 입력하세요.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+      )}
+      
+      <div className="space-y-2">
+        <label className="text-sm font-medium">제목</label>
+        <Input
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="제목을 입력하세요"
+          required
+          className={errors.some(e => e.field === 'title') ? 'border-red-500' : ''}
         />
-        
-        <div className="flex justify-end space-x-4">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={handleGoBack}
-          >
-            취소
-          </Button>
-          <Button 
-            type="submit"
-            disabled={isSaving}
-          >
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isSaving ? '저장 중...' : '저장하기'}
-          </Button>
-        </div>
-      </form>
-    </Form>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">카테고리</label>
+        <Select
+          value={formData.category}
+          onValueChange={(category) => setFormData({ ...formData, category: category as CategoryType })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="카테고리 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORIES.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">요약</label>
+        <Input
+          value={formData.summary}
+          onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+          placeholder="요약을 입력하세요"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">태그 (최대 10개, 쉼표로 구분)</label>
+        <TagifyComponent
+          value={formData.tags}
+          settings={tagifySettings}
+          onChange={handleTagChange}
+          className="tagify-custom"
+        />
+        <p className="mt-1 text-sm text-gray-500">
+          현재 {formData.tags.length}/10개 태그가 입력되었습니다.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">대표 이미지</label>
+        <FileUpload
+          onUploadComplete={(url) => setFormData({ ...formData, imageSource: url })}
+          accept="image/*"
+          variant="image"
+          currentImage={formData.imageSource}
+        />
+        {errors.some(e => e.field === 'image') && (
+          <p className="text-sm text-red-500 mt-1">대표 이미지를 업로드해주세요.</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">원본 URL</label>
+        <Input
+          value={formData.originalUrl}
+          onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
+          placeholder="https://example.com"
+          className={errors.some(e => e.field === 'originalUrl') ? 'border-red-500' : ''}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          원본 출처가 있는 경우 URL을 입력하세요. (선택사항)
+        </p>
+        {errors.some(e => e.field === 'originalUrl') && (
+          <p className="text-sm text-red-500 mt-1">올바른 URL 형식이 아닙니다. (예: https://example.com)</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">작성자</label>
+        <AuthorSelect 
+          value={selectedAuthor} 
+          onChange={handleAuthorChange} 
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">부서</label>
+        <Select
+          value={formData.authorDepartment}
+          onValueChange={(department) => setFormData({ ...formData, authorDepartment: department as DepartmentType })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="부서 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            {DEPARTMENTS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">게시일</label>
+        <DatePicker
+          date={formData.publishDate}
+          setDate={(date: Date | undefined) => date && setFormData({ ...formData, publishDate: date })}
+        />
+      </div>
+
+      <div className="flex items-center space-x-2 mt-4">
+        <Checkbox
+          id="isPublished"
+          checked={formData.isPublished}
+          onCheckedChange={(checked) => 
+            setFormData({ ...formData, isPublished: checked as boolean })
+          }
+        />
+        <label
+          htmlFor="isPublished"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          바로 게시하기
+        </label>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="isMainFeatured"
+          checked={formData.isMainFeatured}
+          onCheckedChange={(checked) => 
+            setFormData({ ...formData, isMainFeatured: checked as boolean })
+          }
+        />
+        <label
+          htmlFor="isMainFeatured"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
+          주요 뉴스로 설정
+        </label>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">내용</label>
+        <TinyEditor
+          value={formData.content}
+          onChange={(content: string) => setFormData({ ...formData, content })}
+        />
+        {errors.some(e => e.field === 'content') && (
+          <p className="text-sm text-red-500 mt-1">내용을 입력해주세요.</p>
+        )}
+      </div>
+
+      <div className="flex justify-end space-x-4 mt-8">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => window.history.back()}
+          disabled={isSubmitting}
+        >
+          취소
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? '저장 중...' : '저장하기'}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -464,34 +381,35 @@ export default function EditNewsPage(): JSX.Element {
   const router = useRouter();
   const params = useParams();
   const newsId = params.id as string;
+  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errors, setErrors] = useState<FormError[]>([]);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<string>('ko');
+  const [selectedAuthor, setSelectedAuthor] = useState<string>('current_user');
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // React Hook Form 설정
-  const form = useForm<NewsFormData>({
-    defaultValues: {
-      title: { ko: '', en: '' },
-      summary: { ko: '', en: '' },
-      content: { ko: '', en: '' },
-      category: 'company',
-      author: {
-        department: '운영자',
-        name: ''
-      },
-      publishDate: new Date().toISOString().substring(0, 10),
-      imageSource: '',
-      isPublished: false,
-      isMainFeatured: false
-    }
+  const [formData, setFormData] = useState<NewsFormData>({
+    title: '',
+    summary: '',
+    content: '',
+    category: 'tech',
+    author: 'current_user',
+    publishDate: new Date(),
+    imageSource: '',
+    authorDepartment: 'tech_team',
+    tags: [],
+    originalUrl: '',
+    isPublished: true,
+    isMainFeatured: false
   });
 
   // 데이터 로드
   useEffect(() => {
     async function loadNewsData(): Promise<void> {
+      if (!newsId) return;
+      
       setIsLoading(true);
       try {
         // 기본 헤더
@@ -520,32 +438,25 @@ export default function EditNewsPage(): JSX.Element {
         
         console.log('[디버그] 로드된 뉴스 데이터:', post);
         
-        // 날짜 포맷팅
-        const publishDate = post.publishDate 
-          ? new Date(post.publishDate).toISOString().substring(0, 10)
-          : new Date().toISOString().substring(0, 10);
+        // 작성자 정보 설정
+        let authorId = 'current_user';
+        if (post.author && post.author._id) {
+          authorId = post.author._id;
+        }
+        setSelectedAuthor(authorId);
         
         // 폼 데이터 설정
-        form.reset({
-          title: {
-            ko: post.title?.ko || '',
-            en: post.title?.en || ''
-          },
-          summary: {
-            ko: post.summary?.ko || '',
-            en: post.summary?.en || ''
-          },
-          content: {
-            ko: post.content?.ko || '',
-            en: post.content?.en || ''
-          },
-          category: (post.category as CategoryType) || 'company',
-          author: {
-            department: (post.author?.department as DepartmentType) || '운영자',
-            name: post.author?.name || ''
-          },
-          publishDate,
+        setFormData({
+          title: post.title?.ko || '',
+          summary: post.summary?.ko || '',
+          content: post.content?.ko || '',
+          category: (post.category as CategoryType) || 'tech',
+          author: authorId,
+          publishDate: post.publishDate ? new Date(post.publishDate) : new Date(),
           imageSource: post.imageSource || '',
+          authorDepartment: (post.author?.department as DepartmentType) || 'tech_team',
+          tags: post.tags || [],
+          originalUrl: post.originalUrl || '',
           isPublished: post.isPublished || false,
           isMainFeatured: post.isMainFeatured || false
         });
@@ -557,42 +468,95 @@ export default function EditNewsPage(): JSX.Element {
         toast({
           title: "데이터 로딩 실패",
           description: "뉴스 데이터를 불러오는데 실패했습니다.",
-          variant: "destructive",
-          action: <ToastAction altText="다시 시도">다시 시도</ToastAction>,
+          variant: "destructive"
         });
       } finally {
         setIsLoading(false);
       }
     }
     
-    if (newsId) {
-      loadNewsData();
-    }
-  }, [newsId, form]);
+    loadNewsData();
+  }, [newsId, toast]);
 
-  // 폼 제출 처리
-  const onSubmit = async (data: NewsFormData): Promise<void> => {
-    setIsSaving(true);
+  const validateForm = (): boolean => {
+    const newErrors: FormError[] = [];
+
+    if (!formData.title) {
+      newErrors.push({ field: 'title', message: '제목을 입력해주세요.' });
+    }
+    if (!formData.content) {
+      newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
+    }
+    if (!formData.imageSource) {
+      newErrors.push({ field: 'image', message: '대표 이미지를 업로드해주세요.' });
+    }
+    
+    if (formData.originalUrl && !/^https?:\/\/.+/.test(formData.originalUrl)) {
+      newErrors.push({ field: 'originalUrl', message: '올바른 URL 형식이 아닙니다. (예: https://example.com)' });
+    }
+
+    setErrors(newErrors);
+    return newErrors.length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      toast({
+        variant: 'destructive',
+        title: '입력 오류',
+        description: '필수 항목을 모두 입력해주세요.'
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      // 기본 헤더
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
+      // 작성자 정보 처리
+      let authorData = selectedAuthor;
+      
+      // 기본값이 'current_user'인 경우 공백으로 설정하여 API가 현재 사용자를 사용하도록 함
+      if (selectedAuthor === 'current_user') {
+        authorData = '';
+      }
+      
+      // 백엔드에 맞게 데이터 형식 변환
+      const apiData = {
+        title: { ko: formData.title },
+        summary: { ko: formData.summary },
+        content: { ko: formData.content },
+        category: formData.category,
+        author: authorData,
+        publishDate: formData.publishDate,
+        imageSource: formData.imageSource,
+        authorDepartment: formData.authorDepartment,
+        tags: formData.tags,
+        originalUrl: formData.originalUrl,
+        isPublished: formData.isPublished,
+        isMainFeatured: formData.isMainFeatured
       };
       
-      // localStorage에서 토큰 가져오기 (있는 경우에만)
+      console.log('[디버그] 뉴스 수정 요청 데이터:', apiData);
+      
+      // 인증 토큰 가져오기
       const token = getToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      
+      if (!token) {
+        throw new Error('인증 정보가 없습니다. 다시 로그인해주세요.');
       }
-
-      console.log('[디버그] 뉴스 수정 요청 데이터:', data);
       
+      // API 요청 보내기
       const response = await fetch(`/api/posts/news/${newsId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(data)
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(apiData),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json() as { message?: string };
         throw new Error(errorData.message || '뉴스 업데이트에 실패했습니다.');
@@ -608,6 +572,9 @@ export default function EditNewsPage(): JSX.Element {
         title: "저장 성공",
         description: "뉴스 내용이 성공적으로 저장되었습니다.",
       });
+      
+      // 성공 후 목록 페이지로 이동
+      router.push('/admin/news');
     } catch (error: unknown) {
       console.error('뉴스 저장 오류:', error);
       const errorMsg = error instanceof Error ? error.message : '뉴스 저장 중 오류가 발생했습니다.';
@@ -619,13 +586,24 @@ export default function EditNewsPage(): JSX.Element {
         variant: "destructive",
       });
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
     }
   };
 
-  // 목록으로 돌아가기
-  const handleGoBack = (): void => {
-    router.push('/admin/news');
+  const handleAuthorChange = (authorId: string): void => {
+    setSelectedAuthor(authorId);
+    setFormData(prev => ({
+      ...prev,
+      author: authorId
+    }));
+  };
+
+  const handleTagChange = (e: TagifyEvent): void => {
+    const tags = e.detail.tagify.value.map(tag => tag.value);
+    setFormData(prev => ({
+      ...prev,
+      tags
+    }));
   };
 
   if (isLoading) {
@@ -633,17 +611,7 @@ export default function EditNewsPage(): JSX.Element {
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">뉴스 수정</h1>
-        <Button 
-          variant="outline" 
-          onClick={handleGoBack}
-        >
-          목록으로 돌아가기
-        </Button>
-      </div>
-      
+    <div className="container mx-auto p-6">
       {errorMessage && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -653,7 +621,7 @@ export default function EditNewsPage(): JSX.Element {
       )}
       
       {showSuccess && (
-        <Alert variant="default" className="mb-6 bg-green-50 border-green-200">
+        <Alert className="mb-6 bg-green-50 border-green-200">
           <Check className="h-4 w-4 text-green-600" />
           <AlertTitle className="text-green-800">저장 완료</AlertTitle>
           <AlertDescription className="text-green-700">
@@ -663,12 +631,14 @@ export default function EditNewsPage(): JSX.Element {
       )}
       
       <NewsEditForm
-        form={form}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isSaving={isSaving}
-        onSubmit={onSubmit}
-        handleGoBack={handleGoBack}
+        formData={formData}
+        setFormData={setFormData}
+        handleSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        errors={errors}
+        selectedAuthor={selectedAuthor}
+        handleAuthorChange={handleAuthorChange}
+        handleTagChange={handleTagChange}
       />
     </div>
   );

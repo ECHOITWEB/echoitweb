@@ -34,6 +34,9 @@ export async function authMiddleware(req: AuthenticatedRequest): Promise<NextRes
   const token = extractTokenFromRequest(req);
 
   console.log('인증 미들웨어 호출됨, 토큰 존재:', !!token);
+  if (token) {
+    console.log('토큰 정보:', token.substring(0, 15) + '...');
+  }
 
   if (!token) {
     // 개발 모드에서는 /api/users에 대한 POST 요청을 특별히 허용
@@ -45,26 +48,46 @@ export async function authMiddleware(req: AuthenticatedRequest): Promise<NextRes
       return undefined;
     }
     
+    console.log('토큰 없음: 401 Unauthorized 반환');
     return NextResponse.json(
       { success: false, message: '인증 토큰이 필요합니다.' },
       { status: 401 }
     );
   }
 
-  const payload = verifyAccessToken(token);
+  try {
+    const payload = verifyAccessToken(token);
+    console.log('토큰 검증 결과:', payload ? '성공' : '실패');
+    
+    if (payload) {
+      console.log('토큰 사용자 정보:', {
+        userId: payload.userId,
+        username: payload.username,
+        role: payload.role
+      });
+    }
 
-  if (!payload) {
+    if (!payload) {
+      console.log('유효하지 않은 토큰: 401 Unauthorized 반환');
+      return NextResponse.json(
+        { success: false, message: '유효하지 않거나 만료된 토큰입니다.' },
+        { status: 401 }
+      );
+    }
+
+    // 요청 객체에 사용자 정보 추가
+    req.user = payload;
+    console.log('인증 성공, 다음 핸들러로 진행');
+
+    // 미들웨어 통과 (다음 핸들러로 진행)
+    return undefined;
+  } catch (error) {
+    console.error('토큰 검증 중 예외 발생:', error);
     return NextResponse.json(
-      { success: false, message: '유효하지 않거나 만료된 토큰입니다.' },
-      { status: 401 }
+      { success: false, message: '인증 처리 중 오류가 발생했습니다.' },
+      { status: 500 }
     );
   }
-
-  // 요청 객체에 사용자 정보 추가
-  req.user = payload;
-
-  // 미들웨어 통과 (다음 핸들러로 진행)
-  return undefined;
 }
 
 /**

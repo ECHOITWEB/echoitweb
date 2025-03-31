@@ -1,0 +1,148 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+# 📌 Cursor Frontend Rules (TypeScript & Next.js)
+
+### ✅ Core Tech Stack Restrictions
+- **Framework**: Next.js (App Router only)
+- **Language**: TypeScript
+- **Package Manager**: npm exclusively (`yarn`, `pnpm` usage prohibited)
+
+---
+
+## 🔹 Structure & Code Organization
+
+- **No Mixing of Pages & App Router**
+  ```plaintext
+  Use Next.js App Router exclusively (`/app` directory). Avoid using legacy `/pages` directory.
+  ```
+
+- **Clear Component Separation**
+  ```plaintext
+  Split components immediately if exceeding 150 lines. Maintain concise components.
+  ```
+
+- **Styling Rules**
+  ```plaintext
+  - Use Tailwind CSS exclusively.
+  - No inline styles; className only.
+  ```
+
+---
+
+## 🔹 TypeScript Rules
+
+- **Strict Typing Required**
+  ```plaintext
+  - Explicitly define types for all props, states, and function parameters.
+  - Avoid using `any` and `unknown`. (Exceptions require inline comments with justification.)
+  ```
+
+- **Interfaces & Types**
+  ```plaintext
+  - Prefer interfaces for component props.
+  - Use type aliases for union and intersection types.
+  ```
+
+- **Encourage Use of Utility Types**
+  ```plaintext
+  - Frequently utilize TypeScript utility types: `Pick`, `Omit`, `Partial`, `Required`, etc.
+  ```
+
+---
+
+## 🔹 Next.js Specific Rules
+
+- **Server Components First**
+  ```plaintext
+  Prioritize Server Components. Client Components must explicitly use `'use client'`.
+  ```
+
+- **Dynamic Route Naming Convention**
+  ```plaintext
+  Use consistent dynamic route naming, e.g., `/app/[id]` or `/app/[slug]`.
+  ```
+
+- **Environment Variable Naming**
+  ```plaintext
+  Environment variables exposed to the client must start with `NEXT_PUBLIC_`.  
+  Example: `NEXT_PUBLIC_API_URL`
+  ```
+
+---
+
+## 🔹 npm Related Rules
+
+- **Exclusive Use of npm**
+  ```plaintext
+  Do not use yarn, pnpm, bun, or other package managers.
+  ```
+
+- **Manage `package-lock.json`**
+  ```plaintext
+  Always include `package-lock.json` in Git for dependency stability.
+  ```
+
+- **Standardized npm Scripts**
+  ```json
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "format": "prettier --write ."
+  }
+  ```
+
+---
+
+## 🔹 Code Quality (ESLint & Prettier)
+
+- **ESLint Configuration**
+  ```plaintext
+  - Use default Next.js ESLint settings.
+  - Always include `@typescript-eslint`.
+  - Block commits if ESLint errors are present.
+  ```
+
+- **Prettier Configuration**
+  ```plaintext
+  - Enforce code formatting with Prettier.
+  - Settings: single quotes, trailing commas, semicolons enabled.
+  ```
+
+Example `.prettierrc.json`:
+```json
+{
+  "singleQuote": true,
+  "trailingComma": "all",
+  "semi": true,
+  "tabWidth": 2
+}
+```
+
+---
+
+## 🔹 Git & Collaboration Rules
+
+- **Feature Branch Workflow**
+  ```plaintext
+  - Name branches clearly: `feature/{feature-name}` or `fix/{fix-name}`.
+  - Write clear, descriptive commit messages.
+  ```
+
+- **Mandatory Code Reviews**
+  ```plaintext
+  - Require at least one code review approval before merging PRs.
+  ```
+
+---
+
+## 🚩 Objectives of these Rules
+
+- Maintain consistent and stable frontend architecture.
+- Restrict dependencies exclusively to npm for efficient project management.
+- Ensure codebase maintainability and collaborative clarity.

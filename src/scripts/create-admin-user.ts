@@ -1,5 +1,5 @@
 // MongoDB에 관리자 사용자를 생성하는 스크립트
-import { MongoClient } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 import bcrypt from 'bcrypt';
 import fs from 'fs';
 import path from 'path';
@@ -8,6 +8,23 @@ import { fileURLToPath } from 'url';
 // ESM에서 __dirname 구현
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 사용자 인터페이스 정의
+interface AdminUser {
+  username: string;
+  email: string;
+  password: string;
+  name: {
+    first: string;
+    last: string;
+  };
+  role: string;
+  roles: string[];
+  isActive: boolean;
+  lastLogin: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // .env.local 파일 경로 수정
 const envLocalPath = path.resolve(process.cwd(), '.env.local');
@@ -23,13 +40,13 @@ try {
     console.log('MongoDB URI를 .env.local 파일에서 로드했습니다.');
   }
 } catch (error) {
-  console.warn('.env.local 파일을 읽을 수 없습니다. 기본 URI를 사용합니다:', error.message);
+  console.warn('.env.local 파일을 읽을 수 없습니다. 기본 URI를 사용합니다:', (error as Error).message);
 }
 
 const saltRounds = 10;
 
 // 관리자 사용자 데이터
-const adminUser = {
+const adminUser: AdminUser = {
   username: 'admin',
   email: 'webadmin@echoit.co.kr',
   password: 'echoit1111@', // 실제 사용 시 강력한 비밀번호로 변경 필요
@@ -45,8 +62,8 @@ const adminUser = {
   updatedAt: new Date()
 };
 
-async function createAdminUser() {
-  let client;
+async function createAdminUser(): Promise<void> {
+  let client: MongoClient | undefined;
 
   try {
     // MongoDB에 연결
@@ -54,7 +71,7 @@ async function createAdminUser() {
     await client.connect();
     console.log('MongoDB에 연결되었습니다.');
 
-    const db = client.db();
+    const db: Db = client.db();
     const usersCollection = db.collection('users');
 
     // 기존 관리자 확인

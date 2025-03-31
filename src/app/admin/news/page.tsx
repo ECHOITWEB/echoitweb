@@ -145,51 +145,9 @@ export default function AdminNewsPage() {
       
       console.log('뉴스 데이터 로드 시작');
       
-      // MongoDB에서 직접 뉴스 데이터 가져오기 시도
-      try {
-        const response = await fetch('/api/posts/news/published', {
-          method: 'GET',
-          cache: 'no-store'
-        });
-        
-        console.log('뉴스 게시글 API 응답 상태:', response.status, response.statusText);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('뉴스 게시글 API 응답 데이터:', JSON.stringify(data).substring(0, 200) + '...');
-          
-          if (Array.isArray(data) && data.length > 0) {
-            console.log(`뉴스 게시글 API에서 ${data.length}개의 게시물 가져옴`);
-            setPosts(data);
-            setTotalPosts(data.length);
-            setIsLoading(false);
-            return;
-          } else if (data.posts && Array.isArray(data.posts) && data.posts.length > 0) {
-            console.log(`뉴스 게시글 API에서 ${data.posts.length}개의 게시물 가져옴`);
-            setPosts(data.posts);
-            setTotalPosts(data.totalCount || data.posts.length);
-            setIsLoading(false);
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('뉴스 게시글 API 호출 오류:', error);
-      }
-      
       // API 요청 헤더 설정 (토큰 포함)
-      let token = null;
-      if (typeof window !== 'undefined') {
-        const sessionStr = localStorage.getItem('echoit_auth_token');
-        if (sessionStr) {
-          try {
-            const session = JSON.parse(sessionStr);
-            token = session?.accessToken;
-            console.log('인증 토큰 확인:', token ? '토큰 있음' : '토큰 없음');
-          } catch (e) {
-            console.error('토큰 파싱 오류:', e);
-          }
-        }
-      }
+      let token = getToken();
+      console.log('인증 토큰 확인:', token ? '토큰 있음' : '토큰 없음');
       
       // API 요청 헤더 설정
       let headers: Record<string, string> = {
@@ -200,8 +158,9 @@ export default function AdminNewsPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      // 기존 API 시도
+      // 모든 뉴스 가져오기 (발행 및 미발행 포함)
       try {
+        console.log('모든 뉴스 데이터 요청 중...');
         const response = await fetch('/api/posts/news?withCounts=true', {
           method: 'GET',
           headers,
@@ -236,11 +195,14 @@ export default function AdminNewsPage() {
                 newsData = data;
               } else if (data.data && Array.isArray(data.data)) {
                 newsData = data.data;
+              } else if (data.posts && Array.isArray(data.posts)) {
+                newsData = data.posts;
               }
               
               if (newsData.length > 0) {
+                console.log(`API에서 ${newsData.length}개의 뉴스 포스트 가져옴`);
                 setPosts(newsData);
-                setTotalPosts(data.totalCount || newsData.length);
+                setTotalPosts(data.total || newsData.length);
                 setIsLoading(false);
                 return;
               }
@@ -257,11 +219,14 @@ export default function AdminNewsPage() {
             newsData = data;
           } else if (data.data && Array.isArray(data.data)) {
             newsData = data.data;
+          } else if (data.posts && Array.isArray(data.posts)) {
+            newsData = data.posts;
           }
           
           if (newsData.length > 0) {
+            console.log(`API에서 ${newsData.length}개의 뉴스 포스트 가져옴`);
             setPosts(newsData);
-            setTotalPosts(data.totalCount || newsData.length);
+            setTotalPosts(data.total || newsData.length);
             setIsLoading(false);
             return;
           }
@@ -270,7 +235,7 @@ export default function AdminNewsPage() {
         console.error('뉴스 API 호출 오류:', error);
       }
       
-      // 대시보드 API 시도
+      // 대시보드 API 시도 (백업 방법)
       try {
         console.log('대시보드 API로 데이터 요청');
         
@@ -462,13 +427,79 @@ export default function AdminNewsPage() {
   };
 
   // 메인 페이지 노출 여부 변경
-  const handleVisibilityChange = async (id: string, isVisible: boolean) => {
+  const handleMainFeaturedChange = async (id: string, isVisible: boolean) => {
     try {
       // UI 먼저 업데이트하여 반응성 향상
       setPosts(prev => 
         prev.map(post => 
           post._id === id 
-            ? { ...post, isPublished: isVisible } 
+            ? { ...post, isMainFeatured: isVisible } 
+            : post
+        )
+      );
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      const token = getToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // 타임아웃 설정 (3초)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      console.log(`[디버그] 메인 노출 상태 변경 - ID: ${id}, 값: ${isVisible}`);
+      
+      const response = await fetch(`/api/posts/news/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ isMainFeatured: isVisible }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // 요청 실패 시 원래 상태로 되돌림
+        setPosts(prev => 
+          prev.map(post => 
+            post._id === id 
+              ? { ...post, isMainFeatured: !isVisible } 
+              : post
+          )
+        );
+        throw new Error('메인 노출 상태 변경에 실패했습니다.');
+      }
+
+      // 성공 메시지 표시
+      setSuccessMessage(`메인 노출 상태가 성공적으로 변경되었습니다.`);
+      
+      // 3초 후 성공 메시지 숨기기
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
+
+    } catch (error) {
+      console.error('메인 노출 상태 변경 중 오류:', error);
+      toast({
+        variant: 'destructive',
+        title: '오류 발생',
+        description: error instanceof Error ? error.message : '메인 노출 상태 변경 중 오류가 발생했습니다.'
+      });
+    }
+  };
+
+  // 발행 상태 변경 (발행/비발행)
+  const handlePublishChange = async (id: string, isPublished: boolean) => {
+    try {
+      // UI 먼저 업데이트하여 반응성 향상
+      setPosts(prev => 
+        prev.map(post => 
+          post._id === id 
+            ? { ...post, isPublished } 
             : post
         )
       );
@@ -487,9 +518,9 @@ export default function AdminNewsPage() {
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       const response = await fetch(`/api/posts/news/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers,
-        body: JSON.stringify({ isPublished: isVisible }),
+        body: JSON.stringify({ isPublished }),
         signal: controller.signal
       });
       
@@ -500,19 +531,27 @@ export default function AdminNewsPage() {
         setPosts(prev => 
           prev.map(post => 
             post._id === id 
-              ? { ...post, isPublished: !isVisible } 
+              ? { ...post, isPublished: !isPublished } 
               : post
           )
         );
-        throw new Error('상태 변경에 실패했습니다.');
+        throw new Error('발행 상태 변경에 실패했습니다.');
       }
 
+      // 성공 메시지 표시
+      setSuccessMessage(`발행 상태가 성공적으로 ${isPublished ? '발행됨' : '미발행됨'}으로 변경되었습니다.`);
+      
+      // 3초 후 성공 메시지 숨기기
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
+
     } catch (error) {
-      console.error('상태 변경 중 오류:', error);
+      console.error('발행 상태 변경 중 오류:', error);
       toast({
         variant: 'destructive',
         title: '오류 발생',
-        description: error instanceof Error ? error.message : '상태 변경 중 오류가 발생했습니다.'
+        description: error instanceof Error ? error.message : '발행 상태 변경 중 오류가 발생했습니다.'
       });
     }
   };
@@ -571,7 +610,10 @@ export default function AdminNewsPage() {
                     작성자
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    메인 노출
+                    발행 상태
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    주요 뉴스
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     작업
@@ -619,7 +661,7 @@ export default function AdminNewsPage() {
                       <div className="flex items-center space-x-2">
                         <Switch
                           checked={post.isPublished}
-                          onCheckedChange={(checked) => handleVisibilityChange(post._id, checked)}
+                          onCheckedChange={(checked) => handlePublishChange(post._id, checked)}
                         />
                         <span className="text-xs text-gray-500">
                           {post.isPublished ? (
@@ -631,6 +673,27 @@ export default function AdminNewsPage() {
                             <div className="flex items-center text-gray-400">
                               <EyeOff className="w-3.5 h-3.5 mr-1" />
                               <span>비노출</span>
+                            </div>
+                          )}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={post.isMainFeatured || false}
+                          onCheckedChange={(checked) => handleMainFeaturedChange(post._id, checked)}
+                        />
+                        <span className="text-xs text-gray-500">
+                          {post.isMainFeatured ? (
+                            <div className="flex items-center text-blue-600">
+                              <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                              <span>주요 뉴스</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center text-gray-400">
+                              <AlertCircle className="w-3.5 h-3.5 mr-1" />
+                              <span>일반 뉴스</span>
                             </div>
                           )}
                         </span>

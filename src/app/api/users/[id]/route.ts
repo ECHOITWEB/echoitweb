@@ -62,7 +62,18 @@ export async function PUT(
 
   try {
     const { id } = params;
-    const requestBody = await req.json();
+    
+    // 요청 본문을 텍스트로 먼저 받기
+    const requestBodyText = await req.text();
+    console.log(`사용자 업데이트 요청 (ID: ${id}) 원본 본문:`, requestBodyText);
+    
+    // 텍스트를 JSON으로 파싱
+    const requestBody = JSON.parse(requestBodyText);
+    console.log(`사용자 업데이트 요청 (ID: ${id}) 파싱된 데이터:`, requestBody);
+
+    // 현재 사용자 정보 로깅
+    const currentUser = await userService.findById(id);
+    console.log(`현재 사용자 정보 (ID: ${id}):`, currentUser);
 
     // userService를 통해 사용자 정보 업데이트
     const updatedUser = await userService.updateUser(id, {
@@ -70,8 +81,11 @@ export async function PUT(
       name: requestBody.name,
       role: requestBody.role,
       isActive: requestBody.isActive,
+      username: requestBody.username, // username 필드 추가
       password: requestBody.password
     });
+
+    console.log(`사용자 업데이트 완료 (ID: ${id}):`, updatedUser);
 
     return NextResponse.json({
       success: true,

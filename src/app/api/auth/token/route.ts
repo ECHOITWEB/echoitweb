@@ -110,10 +110,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: '토큰이 갱신되었습니다.',
-      tokens: {
-        accessToken,
-        refreshToken: newRefreshToken
-      }
+      accessToken,
+      refreshToken: newRefreshToken
     });
   } catch (error: any) {
     console.error('토큰 갱신 중 오류 발생:', error);

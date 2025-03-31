@@ -313,7 +313,7 @@ function NewsCreateForm({
           htmlFor="isMainFeatured"
           className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
         >
-          메인에 표시하기
+          주요 뉴스로 설정
         </label>
       </div>
 

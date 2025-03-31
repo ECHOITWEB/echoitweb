@@ -8,17 +8,25 @@ import userService from '@/lib/services/user.service';
  * 사용자 목록 조회 API - 관리자만 접근 가능
  */
 export async function GET(req: NextRequest) {
+  console.log('사용자 목록 API 호출됨');
   const authReq = req as AuthenticatedRequest;
+
+  // 요청 헤더 로깅
+  const authHeader = req.headers.get('authorization');
+  console.log('인증 헤더:', authHeader ? `Bearer ${authHeader.substring(7, 20)}...` : '없음');
 
   // 관리자 권한 체크
   const authResult = await requireAdmin(authReq);
   if (authResult) {
+    console.error('관리자 권한 체크 실패:', authResult.status);
     return authResult; // 인증 또는 권한 오류 응답
   }
 
   try {
+    console.log('사용자 서비스 호출 시작');
     // 통합된 userService 사용하여 모든 사용자 조회
     const users = await userService.getAllUsers();
+    console.log(`사용자 ${users.length}명 조회 성공`);
 
     return NextResponse.json({
       success: true,

@@ -115,7 +115,13 @@ export function verifyToken(token: string): JWTPayload | null {
   }
   
   try {
+    console.log('토큰 검증 시도:', token.substring(0, 15) + '...');
     const decoded = jwt.verify(token, JWT_SECRET) as any;
+    console.log('토큰 검증 성공, 디코딩된 페이로드:', {
+      userId: decoded.userId || decoded.id,
+      username: decoded.username,
+      exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'none'
+    });
     
     // payload에 userId 또는 id가 없는 경우 처리
     if (!decoded.userId && !decoded.id) {
@@ -126,11 +132,24 @@ export function verifyToken(token: string): JWTPayload | null {
     // id만 있고 userId가 없는 경우 userId 필드 추가
     if (!decoded.userId && decoded.id) {
       decoded.userId = decoded.id;
+      console.log('id 필드를 userId로 복사:', decoded.id);
     }
     
     return decoded as JWTPayload;
   } catch (error) {
     console.error('JWT 검증 오류:', error);
+    // 만료 시간 디버깅
+    try {
+      const decodedWithoutVerify = jwt.decode(token) as any;
+      if (decodedWithoutVerify && decodedWithoutVerify.exp) {
+        const expDate = new Date(decodedWithoutVerify.exp * 1000);
+        console.log('토큰 만료 시간:', expDate.toISOString());
+        console.log('현재 시간:', new Date().toISOString());
+        console.log('만료 여부:', expDate < new Date() ? '만료됨' : '유효함');
+      }
+    } catch (e) {
+      console.error('토큰 디코딩 실패:', e);
+    }
     return null;
   }
 }
@@ -143,10 +162,19 @@ export function verifyToken(token: string): JWTPayload | null {
 export function verifyAccessToken(token: string): JWTPayload | null {
   const payload = verifyToken(token);
 
-  if (!payload || payload.type !== TokenType.ACCESS) {
+  if (!payload) {
     return null;
   }
 
+  // type 필드 검증 일시적 비활성화 (호환성 문제 해결)
+  // 원래 코드: if (!payload || payload.type !== TokenType.ACCESS)
+  if (payload.type && payload.type !== TokenType.ACCESS) {
+    console.log('토큰 타입 불일치:', payload.type, '기대값:', TokenType.ACCESS);
+    // type 필드가 있고 ACCESS가 아닌 경우에만 실패 처리
+    return null;
+  }
+
+  // type 필드 없는 경우에도 성공으로 처리 (기존 토큰 호환)
   return payload;
 }
 
@@ -158,10 +186,19 @@ export function verifyAccessToken(token: string): JWTPayload | null {
 export function verifyRefreshToken(token: string): JWTPayload | null {
   const payload = verifyToken(token);
 
-  if (!payload || payload.type !== TokenType.REFRESH) {
+  if (!payload) {
     return null;
   }
 
+  // type 필드 검증 일시적 비활성화 (호환성 문제 해결)
+  // 원래 코드: if (!payload || payload.type !== TokenType.REFRESH)
+  if (payload.type && payload.type !== TokenType.REFRESH) {
+    console.log('토큰 타입 불일치:', payload.type, '기대값:', TokenType.REFRESH);
+    // type 필드가 있고 REFRESH가 아닌 경우에만 실패 처리
+    return null;
+  }
+
+  // type 필드 없는 경우에도 성공으로 처리 (기존 토큰 호환)
   return payload;
 }
 

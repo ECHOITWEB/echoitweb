@@ -1,109 +1,140 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db/connect';
-import { NewsPost } from '@/lib/db/models/NewsPost';
+import { AuthenticatedRequest, requireEditor } from '@/lib/auth/middleware';
 
-// News 게시물 수정 API
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+// 기존 임포트 대신 통합 뉴스 서비스 모듈 사용
+const newsService = require('@/lib/services/news.service');
+
+/**
+ * 특정 ID의 뉴스 조회 API
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    // MongoDB 연결
-    await connectToDatabase();
-
-    // 요청 본문 파싱
-    const body = await request.json();
-    const id = params.id;
-
-    console.log(`[API] News 게시물 수정 요청 - ID: ${id}, 데이터:`, body);
-
-    // ID 유효성 검증
-    if (!id) {
-      return NextResponse.json({ success: false, message: '게시물 ID가 필요합니다.' }, { status: 400 });
-    }
-
-    // 게시물 존재 확인
-    const existingPost = await NewsPost.findById(id);
-    if (!existingPost) {
-      return NextResponse.json({ success: false, message: '해당 ID의 게시물을 찾을 수 없습니다.' }, { status: 404 });
-    }
-
-    // 수정 가능한 필드 목록
-    const allowedFields = ['isMainFeatured', 'isPublished', 'title', 'summary', 'content', 'category', 'imageSource', 'tags'];
+    console.log(`뉴스 조회 요청 - ID: ${params.id}`);
     
-    // 업데이트할 필드만 추출
-    const updateData: Record<string, any> = {};
-    for (const key of Object.keys(body)) {
-      if (allowedFields.includes(key)) {
-        updateData[key] = body[key];
-      }
+    const news = await newsService.getNewsById(params.id);
+    
+    if (!news) {
+      console.log(`뉴스를 찾을 수 없음 - ID: ${params.id}`);
+      return NextResponse.json({
+        success: false,
+        message: '뉴스를 찾을 수 없습니다.'
+      }, { status: 404 });
     }
-
-    // isMainFeatured가 true로 설정된 경우, 다른 게시물의 isMainFeatured를 false로 업데이트
-    if (updateData.isMainFeatured === true) {
-      // 현재 게시물을 제외한 다른 모든 메인 노출 게시물을 비노출로 변경
-      console.log(`[API] 메인 노출 설정 - 기존 메인 노출 게시물 비활성화`);
-      await NewsPost.updateMany(
-        { _id: { $ne: id }, isMainFeatured: true },
-        { $set: { isMainFeatured: false } }
-      );
-    }
-
-    // 게시물 업데이트
-    const updatedPost = await NewsPost.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true } // 업데이트된 문서 반환
-    );
-
-    console.log(`[API] News 게시물 수정 완료 - ID: ${id}`);
-
+    
+    console.log(`뉴스 조회 성공 - ID: ${params.id}, 제목: ${news.title?.ko || 'N/A'}`);
+    
     return NextResponse.json({
       success: true,
-      message: '게시물이 성공적으로 업데이트되었습니다.',
-      post: updatedPost
+      post: news
     });
   } catch (error: any) {
-    console.error('[API] News 게시물 수정 오류:', error);
-    return NextResponse.json(
-      { success: false, message: '게시물 업데이트 중 오류가 발생했습니다.', error: error.message },
-      { status: 500 }
-    );
+    console.error(`뉴스 조회 오류 - ID: ${params.id}:`, error);
+    return NextResponse.json({
+      success: false,
+      message: error.message || '뉴스를 조회하는 중 오류가 발생했습니다.'
+    }, { status: 500 });
   }
 }
 
-// News 게시물 삭제 API
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+/**
+ * 뉴스 업데이트 API
+ */
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    // MongoDB 연결
-    await connectToDatabase();
-
-    const id = params.id;
-
-    console.log(`[API] News 게시물 삭제 요청 - ID: ${id}`);
-
-    // ID 유효성 검증
-    if (!id) {
-      return NextResponse.json({ success: false, message: '게시물 ID가 필요합니다.' }, { status: 400 });
+    const authReq = req as AuthenticatedRequest;
+    const user = await requireEditor(authReq);
+    
+    if (!user) {
+      return NextResponse.json({
+        success: false,
+        message: '권한이 없습니다.'
+      }, { status: 403 });
     }
-
-    // 게시물 존재 확인
-    const existingPost = await NewsPost.findById(id);
-    if (!existingPost) {
-      return NextResponse.json({ success: false, message: '해당 ID의 게시물을 찾을 수 없습니다.' }, { status: 404 });
+    
+    const { id } = params;
+    const updateData = await req.json();
+    
+    console.log(`[API] News 게시물 수정 요청 - ID: ${id}, 데이터:`, updateData);
+    
+    // 현재 뉴스 확인
+    const existingNews = await newsService.getNewsById(id);
+    if (!existingNews) {
+      return NextResponse.json({
+        success: false,
+        message: '뉴스를 찾을 수 없습니다.'
+      }, { status: 404 });
     }
-
-    // 게시물 삭제
-    await NewsPost.findByIdAndDelete(id);
-
-    console.log(`[API] News 게시물 삭제 완료 - ID: ${id}`);
-
+    
+    // 뉴스 업데이트
+    const updatedNews = await newsService.updateNews(id, updateData);
+    
+    console.log(`[API] News 게시물 수정 완료 - ID: ${id}`);
+    
     return NextResponse.json({
       success: true,
-      message: '게시물이 성공적으로 삭제되었습니다.'
+      message: '뉴스가 성공적으로 업데이트되었습니다.',
+      post: updatedNews
     });
   } catch (error: any) {
-    console.error('[API] News 게시물 삭제 오류:', error);
-    return NextResponse.json(
-      { success: false, message: '게시물 삭제 중 오류가 발생했습니다.', error: error.message },
-      { status: 500 }
-    );
+    console.error(`뉴스 업데이트 오류 - ID: ${params.id}:`, error);
+    return NextResponse.json({
+      success: false,
+      message: error.message || '뉴스를 업데이트하는 중 오류가 발생했습니다.'
+    }, { status: 500 });
+  }
+}
+
+/**
+ * 뉴스 삭제 API
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const user = await requireEditor(authReq);
+    
+    if (!user) {
+      return NextResponse.json({
+        success: false,
+        message: '권한이 없습니다.'
+      }, { status: 403 });
+    }
+    
+    const { id } = params;
+    
+    console.log(`[API] News 게시물 삭제 요청 - ID: ${id}`);
+    
+    // 현재 뉴스 확인
+    const existingNews = await newsService.getNewsById(id);
+    if (!existingNews) {
+      return NextResponse.json({
+        success: false,
+        message: '뉴스를 찾을 수 없습니다.'
+      }, { status: 404 });
+    }
+    
+    // 뉴스 삭제
+    await newsService.deleteNews(id);
+    
+    console.log(`[API] News 게시물 삭제 완료 - ID: ${id}`);
+    
+    return NextResponse.json({
+      success: true,
+      message: '뉴스가 성공적으로 삭제되었습니다.'
+    });
+  } catch (error: any) {
+    console.error(`뉴스 삭제 오류 - ID: ${params.id}:`, error);
+    return NextResponse.json({
+      success: false,
+      message: error.message || '뉴스를 삭제하는 중 오류가 발생했습니다.'
+    }, { status: 500 });
   }
 } 
