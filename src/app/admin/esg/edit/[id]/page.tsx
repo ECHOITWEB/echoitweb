@@ -361,7 +361,7 @@ export default function EditESGPage() {
                           <Editor
                             apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
                             value={field.value}
-                            onEditorChange={(content) => field.onChange(content)}
+                            onEditorChange={(content: string) => field.onChange(content)}
                             init={{
                               height: 500,
                               menubar: true,
@@ -431,7 +431,7 @@ export default function EditESGPage() {
                           <Editor
                             apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
                             value={field.value}
-                            onEditorChange={(content) => field.onChange(content)}
+                            onEditorChange={(content: string) => field.onChange(content)}
                             init={{
                               height: 500,
                               menubar: true,
