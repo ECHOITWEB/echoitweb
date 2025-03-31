@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TinyEditor } from '@/components/editor/tiny-editor';
 import FileUpload from '@/components/ui/file-upload';
@@ -20,12 +20,25 @@ const TagifyComponent = dynamic(() =>
 );
 
 // CSS 클라이언트 사이드에서만 로드
-const TagifyCss = () => {
+const TagifyCss = (): null => {
   useEffect(() => {
     import('@yaireo/tagify/dist/tagify.css');
   }, []);
   return null;
 };
+
+// ESG 카테고리 목록
+const CATEGORIES = [
+  { value: 'environment', label: '환경' },
+  { value: 'social', label: '사회' },
+  { value: 'governance', label: '지배구조' },
+  { value: 'esg_management', label: 'ESG 경영' },
+  { value: 'sustainability', label: '지속가능성' },
+  { value: 'csr', label: '사회공헌' },
+  { value: 'other', label: '기타' }
+] as const;
+
+type CategoryType = typeof CATEGORIES[number]['value'];
 
 interface Author {
   name: string;
@@ -36,7 +49,7 @@ interface IFormData {
   title: string;
   summary: string;
   content: string;
-  category: string;
+  category: CategoryType;
   author: string;
   publishDate: Date;
   imageSource: string;
@@ -49,12 +62,211 @@ interface FormError {
   message: string;
 }
 
-export default function CreateESGPage() {
+interface TagifyEvent {
+  detail: {
+    tagify: {
+      value: Array<{
+        value: string;
+        [key: string]: unknown;
+      }>;
+    };
+  };
+}
+
+interface ApiData {
+  title: { ko: string };
+  summary: { ko: string };
+  content: { ko: string };
+  category: string;
+  author: string;
+  publishDate: Date;
+  imageSource: string;
+  tags: string[];
+  originalUrl: string;
+}
+
+interface DecodedToken {
+  role?: string;
+  roles?: string[];
+  [key: string]: unknown;
+}
+
+// 폼 컴포넌트
+function ESGCreateForm({
+  formData,
+  setFormData,
+  handleSubmit,
+  isSubmitting,
+  errors,
+  selectedAuthor,
+  handleAuthorChange,
+  handleTagChange
+}: {
+  formData: IFormData;
+  setFormData: React.Dispatch<React.SetStateAction<IFormData>>;
+  handleSubmit: (e: React.FormEvent) => Promise<void>;
+  isSubmitting: boolean;
+  errors: FormError[];
+  selectedAuthor: string;
+  handleAuthorChange: (authorId: string) => void;
+  handleTagChange: (e: TagifyEvent) => void;
+}): JSX.Element {
+  // Tagify 설정
+  const tagifySettings = {
+    maxTags: 10,
+    placeholder: "예: ESG, 지속가능경영, 탄소중립",
+    delimiters: ",",
+    dropdown: {
+      enabled: 0
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <TagifyCss />
+      <h1 className="text-2xl font-bold mb-6">ESG 포스트 작성</h1>
+      
+      {errors.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3" />
+            <div>
+              <h3 className="text-lg font-medium text-red-800">
+                입력 오류가 있습니다
+              </h3>
+              <ul className="mt-2 text-sm text-red-700">
+                {errors.map((error, index) => (
+                  <li key={index}>{error.message}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="space-y-2">
+        <label className="text-sm font-medium">제목</label>
+        <Input
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="제목을 입력하세요"
+          required
+          className={errors.some(e => e.field === 'title') ? 'border-red-500' : ''}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">카테고리</label>
+        <Select
+          value={formData.category}
+          onValueChange={(category) => setFormData({ ...formData, category: category as CategoryType })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="카테고리 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORIES.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">요약</label>
+        <Input
+          value={formData.summary}
+          onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+          placeholder="요약을 입력하세요"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">태그 (최대 10개, 쉼표로 구분)</label>
+        <TagifyComponent
+          value={formData.tags}
+          settings={tagifySettings}
+          onChange={handleTagChange}
+          className="tagify-custom"
+        />
+        <p className="mt-1 text-sm text-gray-500">
+          현재 {formData.tags.length}/10개 태그가 입력되었습니다.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">대표 이미지</label>
+        <FileUpload
+          onUploadComplete={(url) => setFormData({ ...formData, imageSource: url })}
+          accept="image/*"
+          variant="image"
+          currentImage={formData.imageSource}
+        />
+        {errors.some(e => e.field === 'image') && (
+          <p className="text-sm text-red-500 mt-1">대표 이미지를 업로드해주세요.</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">원본 URL</label>
+        <Input
+          value={formData.originalUrl}
+          onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
+          placeholder="https://example.com"
+          className={errors.some(e => e.field === 'originalUrl') ? 'border-red-500' : ''}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          원본 출처가 있는 경우 URL을 입력하세요. (선택사항)
+        </p>
+        {errors.some(e => e.field === 'originalUrl') && (
+          <p className="text-sm text-red-500 mt-1">올바른 URL 형식이 아닙니다. (예: https://example.com)</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">작성자</label>
+        <AuthorSelect 
+          value={selectedAuthor} 
+          onChange={handleAuthorChange} 
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">내용</label>
+        <TinyEditor
+          value={formData.content}
+          onChange={(content) => setFormData({ ...formData, content })}
+        />
+        {errors.some(e => e.field === 'content') && (
+          <p className="text-sm text-red-500 mt-1">내용을 입력해주세요.</p>
+        )}
+      </div>
+
+      <div className="flex justify-end space-x-4 mt-8">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => window.history.back()}
+          disabled={isSubmitting}
+        >
+          취소
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? '저장 중...' : '저장하기'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export default function CreateESGPage(): JSX.Element {
   const router = useRouter();
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormError[]>([]);
-  const [selectedAuthor, setSelectedAuthor] = useState('current_user');
+  const [selectedAuthor, setSelectedAuthor] = useState<string>('current_user');
 
   const [formData, setFormData] = useState<IFormData>({
     title: '',
@@ -68,7 +280,7 @@ export default function CreateESGPage() {
     originalUrl: ''
   });
 
-  const validateForm = () => {
+  const validateForm = (): boolean => {
     const newErrors: FormError[] = [];
 
     if (!formData.title) {
@@ -89,7 +301,7 @@ export default function CreateESGPage() {
     return newErrors.length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
 
     if (!validateForm()) {
@@ -115,7 +327,7 @@ export default function CreateESGPage() {
       console.log('선택된 작성자:', selectedAuthor);
       
       // 백엔드에 맞게 데이터 형식 변환
-      const apiData = {
+      const apiData: ApiData = {
         ...formData,
         title: { ko: formData.title },
         summary: { ko: formData.summary },
@@ -128,7 +340,7 @@ export default function CreateESGPage() {
       // 인증 토큰 가져오기
       const session = localStorage.getItem('echoit_auth_token');
       let accessToken = '';
-      let decodedToken = null;
+      let decodedToken: DecodedToken | null = null;
       
       if (session) {
         try {
@@ -144,7 +356,7 @@ export default function CreateESGPage() {
               const decodedPayload = atob(base64);
               decodedToken = JSON.parse(decodedPayload);
               console.log('디코딩된 토큰 페이로드:', decodedToken);
-              console.log('사용자 역할:', decodedToken.role, decodedToken.roles);
+              console.log('사용자 역할:', decodedToken?.role, decodedToken?.roles);
             }
           }
           
@@ -171,7 +383,7 @@ export default function CreateESGPage() {
 
       // 자세한 응답 로깅
       const responseText = await response.text();
-      let responseData;
+      let responseData: Record<string, unknown>;
       try {
         responseData = JSON.parse(responseText);
       } catch (e) {
@@ -183,7 +395,9 @@ export default function CreateESGPage() {
       console.log('API 응답 내용:', responseData);
 
       if (!response.ok) {
-        throw new Error(responseData.error || responseData.message || 'ESG 포스트 생성에 실패했습니다.');
+        throw new Error((responseData.error as string) || 
+                        (responseData.message as string) || 
+                        'ESG 포스트 생성에 실패했습니다.');
       }
 
       toast({
@@ -204,7 +418,7 @@ export default function CreateESGPage() {
     }
   };
 
-  const handleAuthorChange = (authorId: string) => {
+  const handleAuthorChange = (authorId: string): void => {
     setSelectedAuthor(authorId);
     setFormData(prev => ({
       ...prev,
@@ -212,33 +426,8 @@ export default function CreateESGPage() {
     }));
   };
 
-  const categories = Object.entries(ESGCategory).map(([key, value]) => ({
-    value,
-    label: (() => {
-      switch (value) {
-        case 'environment': return '환경';
-        case 'social': return '사회';
-        case 'governance': return '지배구조';
-        case 'esg_management': return 'ESG 경영';
-        case 'sustainability': return '지속가능성';
-        case 'csr': return '사회공헌';
-        case 'other': return '기타';
-        default: return key;
-      }
-    })()
-  }));
-
-  const tagifySettings = {
-    maxTags: 10,
-    placeholder: "예: ESG, 지속가능경영, 탄소중립",
-    delimiters: ",",
-    dropdown: {
-      enabled: 0
-    }
-  };
-
-  const handleTagChange = (e: any) => {
-    const tags = e.detail.tagify.value.map((tag: any) => tag.value);
+  const handleTagChange = (e: TagifyEvent): void => {
+    const tags = e.detail.tagify.value.map(tag => tag.value);
     setFormData(prev => ({
       ...prev,
       tags
@@ -247,141 +436,16 @@ export default function CreateESGPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <TagifyCss />
-      <h1 className="text-2xl font-bold mb-6">ESG 포스트 작성</h1>
-      
-      {errors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3" />
-            <div>
-              <h3 className="text-lg font-medium text-red-800">
-                입력 오류가 있습니다
-              </h3>
-              <ul className="mt-2 text-sm text-red-700">
-                {errors.map((error, index) => (
-                  <li key={index}>{error.message}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">제목</label>
-          <Input
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            placeholder="제목을 입력하세요"
-            required
-            className={errors.some(e => e.field === 'title') ? 'border-red-500' : ''}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">카테고리</label>
-          <Select
-            value={formData.category}
-            onValueChange={(category) => setFormData({ ...formData, category })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="카테고리 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map(({ value, label }) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">요약</label>
-          <Input
-            value={formData.summary}
-            onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-            placeholder="요약을 입력하세요"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">태그 (최대 10개, 쉼표로 구분)</label>
-          {typeof window !== 'undefined' && (
-            <TagifyComponent
-              value={formData.tags}
-              settings={tagifySettings}
-              onChange={handleTagChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            />
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">대표 이미지</label>
-          <FileUpload
-            onUploadComplete={(url) => setFormData({ ...formData, imageSource: url })}
-            accept="image/*"
-            variant="image"
-            currentImage={formData.imageSource}
-          />
-          {errors.some(e => e.field === 'image') && (
-            <p className="text-sm text-red-500 mt-1">대표 이미지를 업로드해주세요.</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">작성자</label>
-          <AuthorSelect 
-            value={selectedAuthor} 
-            onChange={handleAuthorChange} 
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">내용</label>
-          <TinyEditor
-            value={formData.content}
-            onChange={(content) => setFormData({ ...formData, content })}
-          />
-          {errors.some(e => e.field === 'content') && (
-            <p className="text-sm text-red-500 mt-1">내용을 입력해주세요.</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">원본 URL</label>
-          <Input
-            value={formData.originalUrl}
-            onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
-            placeholder="https://example.com"
-            className={errors.some(e => e.field === 'originalUrl') ? 'border-red-500' : ''}
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            원본 출처가 있는 경우 URL을 입력하세요. (선택사항)
-          </p>
-          {errors.some(e => e.field === 'originalUrl') && (
-            <p className="text-sm text-red-500 mt-1">올바른 URL 형식이 아닙니다. (예: https://example.com)</p>
-          )}
-        </div>
-
-        <div className="flex justify-end space-x-4 mt-8">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push('/admin/esg')}
-            disabled={isSubmitting}
-          >
-            취소
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? '저장 중...' : '저장하기'}
-          </Button>
-        </div>
-      </form>
+      <ESGCreateForm
+        formData={formData}
+        setFormData={setFormData}
+        handleSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        errors={errors}
+        selectedAuthor={selectedAuthor}
+        handleAuthorChange={handleAuthorChange}
+        handleTagChange={handleTagChange}
+      />
     </div>
   );
 }
