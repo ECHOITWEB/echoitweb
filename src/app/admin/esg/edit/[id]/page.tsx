@@ -459,12 +459,26 @@ export default function EditESGPage(): JSX.Element {
 
         // API 응답에서 폼 데이터로 변환
         const post = data.post;
+        console.log('불러온 ESG 데이터:', post);
+        
+        // 작성자 ID 추출
+        let authorId = '';
+        if (post.author) {
+          if (typeof post.author === 'string') {
+            authorId = post.author;
+          } else if (post.author._id) {
+            authorId = post.author._id;
+          }
+        }
+        
+        setSelectedAuthor(authorId || '');
+
         setFormData({
           title: post.title?.ko || '',
           summary: post.summary?.ko || '',
           content: post.content?.ko || '',
           category: (post.category as CategoryType) || 'environment',
-          author: post.author?._id || '',
+          author: authorId,
           publishDate: post.publishDate ? new Date(post.publishDate) : new Date(),
           thumbnailUrl: post.thumbnailUrl || '',
           authorDepartment: (post.author?.department as DepartmentType) || 'esg_team',
@@ -472,8 +486,6 @@ export default function EditESGPage(): JSX.Element {
           isPublished: post.isPublished || false,
           isMainFeatured: post.isMainFeatured || false
         });
-
-        setSelectedAuthor(post.author?._id || '');
       } catch (error) {
         console.error('ESG 데이터 로드 오류:', error);
         toast({
@@ -546,7 +558,7 @@ export default function EditESGPage(): JSX.Element {
           en: formData.content, // 영문 동일하게 처리
         },
         category: formData.category,
-        author: selectedAuthor,
+        author: selectedAuthor === 'current_user' ? '' : selectedAuthor,
         authorDepartment: formData.authorDepartment,
         publishDate: formData.publishDate.toISOString(),
         thumbnailUrl: formData.thumbnailUrl,

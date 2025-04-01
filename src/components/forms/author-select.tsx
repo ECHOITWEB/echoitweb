@@ -15,10 +15,18 @@ interface ExtendedUserInfo extends Omit<UserInfo, 'name'> {
 
 // 표시할 이름 처리 함수
 const getDisplayName = (name: string | { first: string; last: string }): string => {
+  if (!name) return '미지정';
+  
   if (typeof name === 'string') {
     return name;
   }
-  return name.first + (name.last ? ` ${name.last}` : '');
+  
+  // 객체인 경우 first와 last를 조합
+  const firstName = name.first || '';
+  const lastName = name.last || '';
+  
+  if (!firstName && !lastName) return '미지정';
+  return firstName + (lastName ? ` ${lastName}` : '');
 };
 
 // 사용자 목록을 캐싱하기 위한 전역 변수

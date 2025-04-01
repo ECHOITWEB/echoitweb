@@ -5,6 +5,43 @@ import ESGPostModel from '@/lib/db/models/ESGPost';
 // 정적 생성에서 제외 (동적 라우트로 설정)
 export const dynamic = 'force-dynamic';
 
+// ESG 게시물 조회 API
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    // MongoDB 연결
+    await connectToDatabase();
+
+    const id = params.id;
+    console.log(`[API] ESG 게시물 조회 요청 - ID: ${id}`);
+
+    // ID 유효성 검증
+    if (!id) {
+      return NextResponse.json({ success: false, message: '게시물 ID가 필요합니다.' }, { status: 400 });
+    }
+
+    // 게시물 조회 (작성자 정보 포함)
+    const post = await ESGPostModel.findById(id).populate('author');
+    
+    if (!post) {
+      console.log(`[API] ESG 게시물 없음 - ID: ${id}`);
+      return NextResponse.json({ success: false, message: '해당 ID의 게시물을 찾을 수 없습니다.' }, { status: 404 });
+    }
+
+    console.log(`[API] ESG 게시물 조회 성공 - ID: ${id}, 작성자:`, post.author);
+    
+    return NextResponse.json({
+      success: true,
+      post
+    });
+  } catch (error: any) {
+    console.error('[API] ESG 게시물 조회 오류:', error);
+    return NextResponse.json(
+      { success: false, message: '게시물 조회 중 오류가 발생했습니다.', error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
 // ESG 게시물 수정 API
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -29,7 +66,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     // 수정 가능한 필드 목록
-    const allowedFields = ['isMainFeatured', 'isPublished', 'title', 'summary', 'content', 'category', 'imageSource', 'thumbnailUrl', 'tags'];
+    const allowedFields = ['isMainFeatured', 'isPublished', 'title', 'summary', 'content', 'category', 'imageSource', 'thumbnailUrl', 'tags', 'author', 'authorDepartment', 'publishDate'];
     
     // 업데이트할 필드만 추출
     const updateData: Record<string, any> = {};
