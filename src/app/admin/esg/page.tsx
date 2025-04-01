@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { FallbackImage } from '@/components/ui/fallback-image';
+import { AdminLayout } from '@/components/ui/admin-layout';
 
 // ESG 카테고리 한글 표시
 const categoryLabels: Record<string, string> = {
@@ -449,17 +450,17 @@ export default function AdminESGPage() {
   };
 
   return (
-    <div className="container max-w-7xl mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">ESG 관리</h1>
+    <div className="container mx-auto px-4 py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">ESG 관리</h1>
         <Link href="/admin/esg/create">
-          <Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700">
             <PlusCircle className="mr-2 h-4 w-4" />
             새 ESG 작성
           </Button>
         </Link>
       </div>
-      
+
       {successMessage && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded flex items-center mb-4">
           <CheckCircle className="h-5 w-5 mr-2" />
@@ -474,108 +475,125 @@ export default function AdminESGPage() {
         </div>
       )}
       
-      <div className="border rounded-lg overflow-hidden">
+      <div className="bg-white shadow overflow-hidden rounded-lg">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200">
+          <table className="w-full min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">대표이미지</th>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">제목</th>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">날짜</th>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">카테고리</th>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">작성자</th>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">발행 상태</th>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">주요 뉴스</th>
-                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">작업</th>
+                <th scope="col" className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  대표이미지
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  제목
+                </th>
+                <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  날짜
+                </th>
+                <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  카테고리
+                </th>
+                <th scope="col" className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  작성자
+                </th>
+                <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  발행 상태
+                </th>
+                <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  주요 뉴스
+                </th>
+                <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  작업
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center">
-                    <div className="flex justify-center items-center">
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      <span>데이터를 불러오는 중...</span>
+                  <td colSpan={8} className="px-6 py-4 whitespace-nowrap text-center text-gray-500">
+                    <div className="flex justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="ml-2">로딩 중...</span>
                     </div>
                   </td>
                 </tr>
               ) : posts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                    ESG 포스트가 없습니다. 새 포스트를 작성해주세요.
+                  <td colSpan={8} className="px-6 py-4 whitespace-nowrap text-center text-gray-500">
+                    ESG 포스트가 없습니다.
                   </td>
                 </tr>
               ) : (
                 posts.map((post) => (
                   <tr key={post._id} className="hover:bg-gray-50">
-                    <td className="py-3 px-3 text-sm">
-                      <div className="relative w-16 h-12">
-                        <FallbackImage 
-                          src={post.thumbnailUrl || post.imageSource || '/images/placeholder.jpg'} 
-                          alt={post.title.ko}
-                          width={64}
-                          height={48}
-                          className="object-cover rounded"
-                        />
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-sm font-medium">
-                      <Link href={`/admin/esg/edit/${post._id}`} className="hover:text-blue-600">
-                        {post.title.ko.length > 30 ? post.title.ko.substring(0, 30) + '...' : post.title.ko}
-                      </Link>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-500">
-                      {format(new Date(post.publishDate || post.createdAt), 'yyyy년 MM월 dd일', { locale: ko })}
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-500">
-                      <Badge className={categoryColors[post.category]}>
-                        {categoryLabels[post.category] || post.category}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-500">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{getAuthorName(post.author)}</span>
-                        <span className="text-xs">{getAuthorDepartment(post.author)}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Switch
-                          checked={post.isPublished}
-                          onCheckedChange={() => togglePublishStatus(post)}
-                          aria-label="발행 상태 토글"
-                          className="mr-2"
-                        />
-                        <span>{post.isPublished ? '노출' : '비노출'}</span>
-                        {post.isPublished ? (
-                          <Eye className="h-4 w-4 ml-1 text-green-500" />
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center justify-center h-16 w-16 overflow-hidden rounded-md">
+                        {post.thumbnailUrl ? (
+                          <Image
+                            src={post.thumbnailUrl}
+                            alt={post.title.ko}
+                            width={64}
+                            height={64}
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
-                          <EyeOff className="h-4 w-4 ml-1 text-gray-400" />
+                          <div className="flex items-center justify-center h-full w-full bg-gray-200 text-gray-400">
+                            <span className="text-xs">이미지 없음</span>
+                          </div>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-sm text-gray-500">
-                      <div className="flex items-center">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 line-clamp-1">
+                        <Link href={`/admin/esg/edit/${post._id}`} className="hover:text-indigo-600">
+                          {post.title.ko}
+                        </Link>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {format(new Date(post.publishDate || post.createdAt), 'yyyy.MM.dd', { locale: ko })}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge className={categoryColors[post.category] || "bg-gray-100 text-gray-800"}>
+                        {categoryLabels[post.category] || post.category}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{getAuthorName(post.author)}</div>
+                      <div className="text-xs text-gray-500">{getAuthorDepartment(post.author)}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={post.isPublished}
+                          onCheckedChange={() => togglePublishStatus(post)}
+                        />
+                        <span className="text-sm text-gray-500">
+                          {post.isPublished ? '발행됨' : '비공개'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
                         <Switch
                           checked={post.isMainFeatured || false}
                           onCheckedChange={() => toggleMainFeatured(post)}
-                          aria-label="주요 뉴스 토글"
-                          className="mr-2"
                         />
-                        <span>{post.isMainFeatured ? '주요' : '일반'}</span>
+                        <span className="text-sm text-gray-500">
+                          {post.isMainFeatured ? '주요' : '일반'}
+                        </span>
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex space-x-2">
                         <Link href={`/admin/esg/edit/${post._id}`}>
-                          <Button variant="outline" size="sm" className="h-8">
+                          <Button variant="outline" size="sm" className="px-2 py-1">
                             <Edit className="h-4 w-4" />
                           </Button>
                         </Link>
-                        <Button
-                          variant="outline"
+                        <Button 
+                          variant="outline" 
                           size="sm"
-                          className="h-8 text-red-600 hover:text-red-700"
+                          className="px-2 py-1 text-red-600 hover:text-red-800" 
                           onClick={() => openDeleteDialog(post._id)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -590,24 +608,20 @@ export default function AdminESGPage() {
         </div>
       </div>
       
-      {/* 삭제 확인 다이얼로그 */}
-      <Dialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-      >
+      {/* 삭제 확인 대화상자 */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>ESG 포스트 삭제</DialogTitle>
             <DialogDescription>
-              정말로 이 ESG 포스트를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              이 ESG 포스트를 정말로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               취소
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button variant="destructive" onClick={handleDelete} disabled={postToDelete === null}>
               삭제
             </Button>
           </DialogFooter>
