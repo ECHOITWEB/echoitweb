@@ -4,6 +4,9 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { User, NewsPost, ESGPost, IUser, INewsPost, IESGPost } from '@/lib/db/models';
 import { Db, Document } from 'mongodb';
 
+// 이 라우트를 정적 생성에서 제외시키는 설정
+export const dynamic = 'force-dynamic';
+
 /**
  * 실시간 대시보드 데이터 API
  *

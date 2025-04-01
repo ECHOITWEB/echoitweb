@@ -6,10 +6,16 @@ interface TinyEditorProps {
   onChange: (value: string) => void;
 }
 
+// TinyMCE 에디터 타입 정의를 @tinymce/tinymce-react에서 가져옵니다
+import type { Editor as TinyMCEEditor } from 'tinymce';
+
 export function TinyEditor({ value, onChange }: TinyEditorProps) {
   const editorRef = useRef<any>(null);
 
-  const handleImageUpload = async (blobInfo: any) => {
+  const handleImageUpload = async (blobInfo: {
+    blob: () => Blob;
+    filename: () => string;
+  }) => {
     const formData = new FormData();
     formData.append('file', blobInfo.blob(), blobInfo.filename());
 
@@ -34,7 +40,7 @@ export function TinyEditor({ value, onChange }: TinyEditorProps) {
   return (
     <Editor
       apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
-      onInit={(evt, editor) => editorRef.current = editor}
+      onInit={(_evt, editor) => editorRef.current = editor}
       value={value}
       onEditorChange={onChange}
       init={{
