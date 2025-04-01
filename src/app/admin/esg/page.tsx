@@ -193,6 +193,7 @@ export default function AdminESGPage() {
             
             if (retryResponse.ok) {
               const data = await retryResponse.json();
+              console.log('ESG API 갱신된 토큰 응답 데이터:', JSON.stringify(data).substring(0, 200) + '...');
               
               let esgData: ESGPost[] = [];
               
@@ -206,18 +207,20 @@ export default function AdminESGPage() {
                 esgData = data.posts;
               }
               
-              if (esgData.length > 0) {
-                console.log(`API에서 ${esgData.length}개의 ESG 포스트 가져옴`);
-                setPosts(esgData);
-                setTotalPosts(data.total || esgData.length);
-                setIsLoading(false);
-                setErrorMessage('');
-                return;
-              }
+              console.log('파싱된 ESG 데이터 길이:', esgData.length);
+              // 데이터가 비어있더라도 표시하도록 수정
+              setPosts(esgData);
+              setTotalPosts(data.total || esgData.length);
+              setIsLoading(false);
+              setErrorMessage('');
+              return;
+            } else {
+              console.log('ESG API 재시도 실패:', retryResponse.status, retryResponse.statusText);
             }
           }
         } else if (response.ok) {
           const data = await response.json();
+          console.log('ESG API 응답 데이터:', JSON.stringify(data).substring(0, 200) + '...');
           
           let esgData: ESGPost[] = [];
           
@@ -231,13 +234,20 @@ export default function AdminESGPage() {
             esgData = data.posts;
           }
           
-          if (esgData.length > 0) {
-            console.log(`API에서 ${esgData.length}개의 ESG 포스트 가져옴`);
-            setPosts(esgData);
-            setTotalPosts(data.total || esgData.length);
-            setIsLoading(false);
-            setErrorMessage('');
-            return;
+          console.log('파싱된 ESG 데이터 길이:', esgData.length);
+          // 데이터가 비어있더라도 표시하도록 수정
+          setPosts(esgData);
+          setTotalPosts(data.total || esgData.length);
+          setIsLoading(false);
+          setErrorMessage('');
+          return;
+        } else {
+          console.log('ESG API 오류 상태:', response.status, response.statusText);
+          try {
+            const errorData = await response.json();
+            console.log('ESG API 오류 응답:', errorData);
+          } catch (e) {
+            console.log('ESG API 오류 응답을 파싱할 수 없음:', e);
           }
         }
       } catch (error) {
