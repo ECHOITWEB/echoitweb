@@ -6,6 +6,7 @@ import { translate } from '@/lib/translate';
 import { requireEditor } from '@/lib/auth/middleware';
 import { createSlug } from '@/lib/utils/slug';
 import { User } from '@/lib/db/models/User';
+import mongoose from 'mongoose';
 
 // 정적 생성에서 제외 (동적 라우트로 설정)
 export const dynamic = 'force-dynamic';
@@ -183,7 +184,9 @@ export async function GET(req: NextRequest) {
     }, 10000); // 10초 타임아웃
     
     // DB 연결
+    console.log('ESG API: MongoDB 연결 시도');
     await connectToDatabase();
+    console.log('ESG API: MongoDB 연결 성공');
     
     // 쿼리 파라미터 파싱
     const { searchParams } = new URL(req.url);
@@ -194,6 +197,15 @@ export async function GET(req: NextRequest) {
     const withCounts = searchParams.get('withCounts') === 'true';
     const search = searchParams.get('search');
     
+    console.log('ESG API: 쿼리 파라미터', {
+      category,
+      page,
+      limit,
+      isPublished: searchParams.get('isPublished'),
+      withCounts,
+      search
+    });
+    
     // 쿼리 조건 설정
     const query: any = {};
     
@@ -202,9 +214,9 @@ export async function GET(req: NextRequest) {
       query.category = category;
     }
     
-    // 발행 상태 필터링
-    if (isPublished !== undefined) {
-      query.isPublished = isPublished;
+    // 발행 상태 필터링 (명시적으로 true로 설정된 경우에만 필터링)
+    if (searchParams.get('isPublished') === 'true') {
+      query.isPublished = true;
     }
     
     // 검색어 필터링
@@ -220,8 +232,34 @@ export async function GET(req: NextRequest) {
       ];
     }
     
+    console.log('ESG API: 최종 쿼리 조건', JSON.stringify(query));
+    
     // 페이지네이션 설정
     const skip = (page - 1) * limit;
+
+    // 컬렉션 유효성 확인
+    let collectionNames: string[] = [];
+    try {
+      if (mongoose.connection.db) {
+        const collections = await mongoose.connection.db.collections();
+        collectionNames = collections.map(c => c.collectionName);
+      } else {
+        console.log('ESG API: mongoose.connection.db가 undefined입니다.');
+      }
+    } catch (err) {
+      console.error('ESG API: 컬렉션 정보 가져오기 오류:', err);
+    }
+    console.log('ESG API: 사용 가능한 컬렉션', collectionNames);
+    
+    // 모델 검증
+    console.log('ESG API: 모델 정보', {
+      modelName: ESGPostModel.modelName,
+      collection: ESGPostModel.collection.name
+    });
+    
+    // 전체 개수 확인 (쿼리 없이)
+    const totalAll = await ESGPostModel.countDocuments({});
+    console.log(`ESG API: 전체 ESG 포스트 수 (필터 없음): ${totalAll}`);
     
     // ESG 포스트 조회
     let posts;
@@ -248,6 +286,8 @@ export async function GET(req: NextRequest) {
         .exec();
     }
     
+    console.log(`ESG API: 조회된 포스트 수: ${posts.length}, 총 개수: ${total}`);
+    
     clearTimeout(timeoutId);
     
     // 응답 생성
@@ -270,7 +310,8 @@ export async function GET(req: NextRequest) {
     try {
       return NextResponse.json({
         success: false,
-        message: '포스트 조회 중 오류가 발생했습니다.'
+        message: '포스트 조회 중 오류가 발생했습니다.',
+        error: error instanceof Error ? error.message : '알 수 없는 오류'
       }, { status: 500 });
     } catch (finalError) {
       // 응답 생성 자체에 실패한 경우 (스트림 오류 등)
