@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { AuthorSelect } from '@/components/forms/author-select';
-import { AlertCircle, Check, Loader2 } from 'lucide-react';
+import { AlertCircle, Check, Loader2, ArrowLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import dynamic from 'next/dynamic';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -138,6 +138,30 @@ function getToken(): string | null {
   return null;
 }
 
+// 토큰 갱신 함수
+const refreshToken = async () => {
+  try {
+    const response = await fetch('/api/auth/token', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.accessToken) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('echoit_auth_token', JSON.stringify(data));
+        }
+        return data.accessToken;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('토큰 갱신 중 오류:', error);
+    return null;
+  }
+};
+
 // 로딩 컴포넌트
 function LoadingSpinner(): JSX.Element {
   return (
@@ -146,6 +170,18 @@ function LoadingSpinner(): JSX.Element {
       <span className="ml-2 text-lg">뉴스 데이터를 불러오는 중...</span>
     </div>
   );
+}
+
+// AuthorSelect 컴포넌트 props 타입 정의
+interface AuthorSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+// TinyEditor 컴포넌트 props 타입 정의
+interface TinyEditorProps {
+  value: string;
+  onChange: (content: string) => void;
 }
 
 // 폼 컴포넌트
@@ -157,7 +193,8 @@ function NewsEditForm({
   errors,
   selectedAuthor,
   handleAuthorChange,
-  handleTagChange
+  handleTagChange,
+  handleBackClick
 }: {
   formData: NewsFormData;
   setFormData: React.Dispatch<React.SetStateAction<NewsFormData>>;
@@ -167,6 +204,7 @@ function NewsEditForm({
   selectedAuthor: string;
   handleAuthorChange: (authorId: string) => void;
   handleTagChange: (e: TagifyEvent) => void;
+  handleBackClick: () => void;
 }): JSX.Element {
   // Tagify 설정
   const tagifySettings = {
@@ -179,199 +217,205 @@ function NewsEditForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-6xl mx-auto p-6 bg-white rounded-lg shadow">
       <TagifyCss />
-      <h1 className="text-2xl font-bold mb-6">뉴스 수정</h1>
-      
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            className="mr-2"
+            onClick={handleBackClick}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            뒤로
+          </Button>
+          <h1 className="text-2xl font-bold">뉴스 콘텐츠 수정</h1>
+        </div>
+        <div className="flex space-x-2">
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                저장 중...
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                저장하기
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
       {errors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3" />
-            <div>
-              <h3 className="text-lg font-medium text-red-800">
-                입력 오류가 있습니다
-              </h3>
-              <ul className="mt-2 text-sm text-red-700">
-                {errors.map((error, index) => (
-                  <li key={index}>{error.message}</li>
-                ))}
-              </ul>
-            </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>오류</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc list-inside">
+              {errors.map((error, index) => (
+                <li key={index}>{error.message}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            제목
+          </label>
+          <Input
+            type="text"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            placeholder="뉴스 제목을 입력하세요"
+            className="w-full"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            요약
+          </label>
+          <Input
+            type="text"
+            value={formData.summary}
+            onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+            placeholder="뉴스 요약을 입력하세요"
+            className="w-full"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            카테고리
+          </label>
+          <Select
+            value={formData.category}
+            onValueChange={(value: CategoryType) => setFormData({ ...formData, category: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="카테고리를 선택하세요" />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((category) => (
+                <SelectItem key={category.value} value={category.value}>
+                  {category.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            작성자
+          </label>
+          <AuthorSelect
+            value={selectedAuthor}
+            onChange={handleAuthorChange}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            발행일
+          </label>
+          <DatePicker
+            date={formData.publishDate || new Date()}
+            setDate={(date) => setFormData({ ...formData, publishDate: date || new Date() })}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            태그
+          </label>
+          <TagifyComponent
+            settings={tagifySettings}
+            value={formData.tags}
+            onChange={handleTagChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            이미지 URL
+          </label>
+          <Input
+            type="text"
+            value={formData.imageSource}
+            onChange={(e) => setFormData({ ...formData, imageSource: e.target.value })}
+            placeholder="이미지 URL을 입력하세요"
+            className="w-full"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            원본 URL
+          </label>
+          <Input
+            type="text"
+            value={formData.originalUrl}
+            onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
+            placeholder="원본 URL을 입력하세요"
+            className="w-full"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            본문
+          </label>
+          <TinyEditor
+            value={formData.content}
+            onChange={(content: string) => setFormData({ ...formData, content })}
+          />
+        </div>
+
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="isPublished"
+              checked={formData.isPublished}
+              onCheckedChange={(checked) => 
+                setFormData({ ...formData, isPublished: checked as boolean })
+              }
+            />
+            <label
+              htmlFor="isPublished"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              발행하기
+            </label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="isMainFeatured"
+              checked={formData.isMainFeatured}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, isMainFeatured: checked as boolean })
+              }
+            />
+            <label
+              htmlFor="isMainFeatured"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              메인 노출
+            </label>
           </div>
         </div>
-      )}
-      
-      <div className="space-y-2">
-        <label className="text-sm font-medium">제목</label>
-        <Input
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          placeholder="제목을 입력하세요"
-          required
-          className={errors.some(e => e.field === 'title') ? 'border-red-500' : ''}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">카테고리</label>
-        <Select
-          value={formData.category}
-          onValueChange={(category) => setFormData({ ...formData, category: category as CategoryType })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="카테고리 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map(({ value, label }) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">요약</label>
-        <Input
-          value={formData.summary}
-          onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-          placeholder="요약을 입력하세요"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">태그 (최대 10개, 쉼표로 구분)</label>
-        <TagifyComponent
-          value={formData.tags}
-          settings={tagifySettings}
-          onChange={handleTagChange}
-          className="tagify-custom"
-        />
-        <p className="mt-1 text-sm text-gray-500">
-          현재 {formData.tags.length}/10개 태그가 입력되었습니다.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">대표 이미지</label>
-        <FileUpload
-          onUploadComplete={(url) => setFormData({ ...formData, imageSource: url })}
-          accept="image/*"
-          variant="image"
-          currentImage={formData.imageSource}
-        />
-        {errors.some(e => e.field === 'image') && (
-          <p className="text-sm text-red-500 mt-1">대표 이미지를 업로드해주세요.</p>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">원본 URL</label>
-        <Input
-          value={formData.originalUrl}
-          onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
-          placeholder="https://example.com"
-          className={errors.some(e => e.field === 'originalUrl') ? 'border-red-500' : ''}
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          원본 출처가 있는 경우 URL을 입력하세요. (선택사항)
-        </p>
-        {errors.some(e => e.field === 'originalUrl') && (
-          <p className="text-sm text-red-500 mt-1">올바른 URL 형식이 아닙니다. (예: https://example.com)</p>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">작성자</label>
-        <AuthorSelect 
-          value={selectedAuthor} 
-          onChange={handleAuthorChange} 
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">부서</label>
-        <Select
-          value={formData.authorDepartment}
-          onValueChange={(department) => setFormData({ ...formData, authorDepartment: department as DepartmentType })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="부서 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            {DEPARTMENTS.map(({ value, label }) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">게시일</label>
-        <DatePicker
-          date={formData.publishDate}
-          setDate={(date: Date | undefined) => date && setFormData({ ...formData, publishDate: date })}
-        />
-      </div>
-
-      <div className="flex items-center space-x-2 mt-4">
-        <Checkbox
-          id="isPublished"
-          checked={formData.isPublished}
-          onCheckedChange={(checked) => 
-            setFormData({ ...formData, isPublished: checked as boolean })
-          }
-        />
-        <label
-          htmlFor="isPublished"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-        >
-          바로 게시하기
-        </label>
-      </div>
-
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="isMainFeatured"
-          checked={formData.isMainFeatured}
-          onCheckedChange={(checked) => 
-            setFormData({ ...formData, isMainFeatured: checked as boolean })
-          }
-        />
-        <label
-          htmlFor="isMainFeatured"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-        >
-          주요 뉴스로 설정
-        </label>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">내용</label>
-        <TinyEditor
-          value={formData.content}
-          onChange={(content: string) => setFormData({ ...formData, content })}
-        />
-        {errors.some(e => e.field === 'content') && (
-          <p className="text-sm text-red-500 mt-1">내용을 입력해주세요.</p>
-        )}
-      </div>
-
-      <div className="flex justify-end space-x-4 mt-8">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => window.history.back()}
-          disabled={isSubmitting}
-        >
-          취소
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? '저장 중...' : '저장하기'}
-        </Button>
       </div>
     </form>
   );
@@ -542,80 +586,107 @@ export default function EditNewsPage(): JSX.Element {
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      toast({
-        variant: 'destructive',
-        title: '입력 오류',
-        description: '필수 항목을 모두 입력해주세요.'
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
+    
     try {
-      // 백엔드에 맞게 데이터 형식 변환
-      const apiData = {
-        title: { ko: formData.title },
-        summary: { ko: formData.summary },
-        content: { ko: formData.content },
-        category: formData.category,
-        author: selectedAuthor !== 'current_user' ? selectedAuthor : '',
-        publishDate: formData.publishDate,
-        imageSource: formData.imageSource,
-        authorDepartment: formData.authorDepartment,
-        tags: formData.tags,
-        originalUrl: formData.originalUrl,
-        isPublished: formData.isPublished,
-        isMainFeatured: formData.isMainFeatured
-      };
-      
-      console.log('[디버그] 뉴스 수정 요청 데이터:', apiData);
-      
-      // 인증 토큰 가져오기
+      setIsSubmitting(true);
+      setErrors([]);
+
+      // 토큰 가져오기
       const token = getToken();
-      
       if (!token) {
-        throw new Error('인증 정보가 없습니다. 다시 로그인해주세요.');
+        toast({
+          title: "인증 오류",
+          description: "로그인이 필요합니다.",
+          variant: "destructive",
+        });
+        return;
       }
-      
-      // API 요청 보내기
-      const response = await fetch(`/api/posts/news/${newsId}`, {
+
+      // API 요청 헤더 설정
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+
+      // API 요청
+      const response = await fetch(`/api/posts/news/${params.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(apiData),
+        headers,
+        body: JSON.stringify({
+          title: { ko: formData.title },
+          summary: { ko: formData.summary },
+          content: { ko: formData.content },
+          category: formData.category,
+          author: formData.author,
+          publishDate: formData.publishDate,
+          imageSource: formData.imageSource,
+          tags: formData.tags,
+          originalUrl: formData.originalUrl,
+          isPublished: formData.isPublished,
+          isMainFeatured: formData.isMainFeatured
+        })
       });
 
       if (!response.ok) {
-        const errorData = await response.json() as { message?: string };
-        throw new Error(errorData.message || '뉴스 업데이트에 실패했습니다.');
+        const errorData = await response.json();
+        if (response.status === 401) {
+          // 토큰 갱신 시도
+          const newToken = await refreshToken();
+          if (newToken) {
+            // 새 토큰으로 재시도
+            const retryResponse = await fetch(`/api/posts/news/${params.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${newToken}`
+              },
+              body: JSON.stringify({
+                title: { ko: formData.title },
+                summary: { ko: formData.summary },
+                content: { ko: formData.content },
+                category: formData.category,
+                author: formData.author,
+                publishDate: formData.publishDate,
+                imageSource: formData.imageSource,
+                tags: formData.tags,
+                originalUrl: formData.originalUrl,
+                isPublished: formData.isPublished,
+                isMainFeatured: formData.isMainFeatured
+              })
+            });
+
+            if (retryResponse.ok) {
+              toast({
+                title: "성공",
+                description: "뉴스가 성공적으로 수정되었습니다.",
+              });
+              router.push('/admin/news');
+              return;
+            }
+          }
+        }
+
+        // 에러 처리
+        const message = errorData.message || '저장 중 오류가 발생했습니다.';
+        toast({
+          title: "오류",
+          description: message,
+          variant: "destructive",
+        });
+        return;
       }
-      
-      const result = await response.json();
-      console.log('[디버그] 뉴스 수정 결과:', result);
-      
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-      
+
+      // 성공
       toast({
-        title: "저장 성공",
-        description: "뉴스 내용이 성공적으로 저장되었습니다.",
+        title: "성공",
+        description: "뉴스가 성공적으로 수정되었습니다.",
       });
-      
-      // 성공 후 목록 페이지로 이동
       router.push('/admin/news');
-    } catch (error: unknown) {
-      console.error('뉴스 저장 오류:', error);
-      const errorMsg = error instanceof Error ? error.message : '뉴스 저장 중 오류가 발생했습니다.';
-      setErrorMessage(errorMsg);
-      
+    } catch (error) {
+      console.error('뉴스 수정 중 오류:', error);
       toast({
-        title: "저장 실패",
-        description: errorMsg,
+        title: "오류",
+        description: "뉴스 수정 중 오류가 발생했습니다.",
         variant: "destructive",
       });
     } finally {
@@ -637,6 +708,10 @@ export default function EditNewsPage(): JSX.Element {
       ...prev,
       tags
     }));
+  };
+
+  const handleBackClick = () => {
+    router.back();
   };
 
   if (isLoading) {
@@ -672,6 +747,7 @@ export default function EditNewsPage(): JSX.Element {
         selectedAuthor={selectedAuthor}
         handleAuthorChange={handleAuthorChange}
         handleTagChange={handleTagChange}
+        handleBackClick={handleBackClick}
       />
     </div>
   );

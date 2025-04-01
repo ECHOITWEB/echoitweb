@@ -563,20 +563,17 @@ export default function AdminNewsPage() {
   const getAuthorName = (author: any): string => {
     if (!author) return '미지정';
     
-    // author가 문자열(ID)인 경우
-    if (typeof author === 'string') return '미지정';
+    if (typeof author === 'string') {
+      // author가 문자열(ID)인 경우 해당 사용자 정보를 가져와야 함
+      return '미지정';
+    }
     
-    // author가 객체인 경우
     if (typeof author === 'object') {
       if (author.name) {
-        if (typeof author.name === 'string') {
-          return author.name;
-        } else if (typeof author.name === 'object' && (author.name.first || author.name.last)) {
-          return `${author.name.first || ''} ${author.name.last || ''}`.trim();
-        }
+        return author.name;
       }
-      
-      if (author.id || author._id) {
+      if (author._id) {
+        // author가 ID만 있는 객체인 경우
         return '미지정';
       }
     }
@@ -586,24 +583,13 @@ export default function AdminNewsPage() {
 
   // 작성자 부서 표시 처리
   const getAuthorDepartment = (author: any): string => {
-    if (!author) return '미지정';
+    if (!author) return '';
     
-    // author가 문자열(ID)인 경우
-    if (typeof author === 'string') return '미지정';
-    
-    // author가 객체인 경우
     if (typeof author === 'object' && author.department) {
-      switch (author.department) {
-        case 'management': return '경영진';
-        case 'news_team': return '뉴스팀';
-        case 'editor': return '편집부';
-        case 'reporter': return '취재기자';
-        case 'strategy': return '전략기획';
-        default: return author.department;
-      }
+      return author.department;
     }
     
-    return '미지정';
+    return '';
   };
 
   return (

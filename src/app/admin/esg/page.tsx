@@ -458,12 +458,17 @@ export default function AdminESGPage() {
     if (!author) return '미지정';
     
     if (typeof author === 'string') {
+      // author가 문자열(ID)인 경우 해당 사용자 정보를 가져와야 함
       return '미지정';
     }
     
     if (typeof author === 'object') {
       if (author.name) {
         return author.name;
+      }
+      if (author._id) {
+        // author가 ID만 있는 객체인 경우
+        return '미지정';
       }
     }
     
@@ -472,24 +477,13 @@ export default function AdminESGPage() {
 
   // 작성자 부서 표시 처리
   const getAuthorDepartment = (author: any): string => {
-    if (!author) return '미지정';
+    if (!author) return '';
     
-    // author가 문자열(ID)인 경우
-    if (typeof author === 'string') return '미지정';
-    
-    // author가 객체인 경우
     if (typeof author === 'object' && author.department) {
-      switch (author.department) {
-        case 'management': return '경영진';
-        case 'esg_team': return 'ESG팀';
-        case 'sustainability': return '지속가능경영팀';
-        case 'csr': return '사회공헌팀';
-        case 'strategy': return '전략기획';
-        default: return author.department;
-      }
+      return author.department;
     }
     
-    return '미지정';
+    return '';
   };
 
   return (
