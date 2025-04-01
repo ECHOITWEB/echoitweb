@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { z } from 'zod';
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 // 태그 검증 스키마
 const tagSchema = z.array(z.string()).min(1).max(10).refine(
   (tags) => new Set(tags).size === tags.length,

@@ -3,6 +3,9 @@ import jwt from 'jsonwebtoken';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/db/models';
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 /**
  * 액세스 토큰 갱신 API 핸들러
  * 

@@ -5,6 +5,9 @@ import jwt from 'jsonwebtoken';
 import { User } from '@/lib/db/models';
 import { connectToDatabase } from '@/lib/db/connect';
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 /**
  * 로그인 API 핸들러 - 초단순화 버전
  */

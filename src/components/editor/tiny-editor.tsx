@@ -6,9 +6,7 @@ interface TinyEditorProps {
   onChange: (value: string) => void;
 }
 
-// TinyMCE 에디터 타입 정의를 @tinymce/tinymce-react에서 가져옵니다
-import type { Editor as TinyMCEEditor } from 'tinymce';
-
+// tinymce 패키지가 없으므로 any 타입을 사용합니다
 export function TinyEditor({ value, onChange }: TinyEditorProps) {
   const editorRef = useRef<any>(null);
 

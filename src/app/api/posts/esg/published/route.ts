@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublishedESGPosts } from '@/lib/services/posts';
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 // 공개 게시된 ESG 포스트를 가져오는 API
 export async function GET(request: NextRequest) {
   try {

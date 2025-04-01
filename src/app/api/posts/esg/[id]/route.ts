@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db/connect';
 import ESGPostModel from '@/lib/db/models/ESGPost';
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 // ESG 게시물 수정 API
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {

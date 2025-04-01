@@ -4,6 +4,9 @@ import { AuthenticatedRequest, requireEditor } from '@/lib/auth/middleware';
 // 기존 임포트 대신 통합 뉴스 서비스 모듈 사용
 const newsService = require('@/lib/services/news.service');
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 /**
  * 특정 ID의 뉴스 조회 API
  */

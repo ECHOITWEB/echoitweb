@@ -7,6 +7,9 @@ import { requireEditor } from '@/lib/auth/middleware';
 import { createSlug } from '@/lib/utils/slug';
 import { User } from '@/lib/db/models/User';
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     console.log('ESG 포스트 생성 요청 시작');

@@ -5,6 +5,9 @@ import { AuthorDepartment } from '@/types/news';
 // 기존 임포트 대신 통합 뉴스 서비스 모듈 사용
 const newsService = require('@/lib/services/news.service');
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     console.log('뉴스 포스트 생성 요청 시작');
