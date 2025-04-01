@@ -545,6 +545,8 @@ export default function EditESGPage(): JSX.Element {
         return;
       }
 
+      // 작성자 처리
+      let authorField = null;
       // 다국어 제목, 요약, 내용 구성
       const postData = {
         title: {

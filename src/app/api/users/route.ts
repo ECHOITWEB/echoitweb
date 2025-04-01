@@ -4,6 +4,9 @@ import { User, UserRole } from '@/lib/db/models';
 import { AuthenticatedRequest, requireAdmin } from '@/lib/auth/middleware';
 import userService from '@/lib/services/user.service';
 
+// 정적 생성에서 제외 (동적 라우트로 설정)
+export const dynamic = 'force-dynamic';
+
 /**
  * 사용자 목록 조회 API - 관리자만 접근 가능
  */

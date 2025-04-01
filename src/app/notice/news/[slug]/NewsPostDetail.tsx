@@ -19,6 +19,7 @@ interface MultiLingual {
 interface Author {
   name: string;
   department: string;
+  _id?: string;
 }
 
 interface NewsPostProps {
@@ -27,13 +28,14 @@ interface NewsPostProps {
   summary?: MultiLingual;
   content: MultiLingual;
   category: string;
-  author?: Author;
+  author?: Author | string;
   publishDate: string;
   imageSource?: string;
   originalUrl?: string;
   viewCount: number;
   slug: string;
   isPublished: boolean;
+  isMainFeatured?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -160,6 +162,34 @@ export default function NewsPostDetail({ post }: NewsPostDetailProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // 작성자 이름을 가져오는 함수
+  const getAuthorName = (): string => {
+    if (!post.author) return '미지정';
+    
+    if (typeof post.author === 'string') {
+      return '미지정';
+    }
+    
+    if (typeof post.author === 'object') {
+      if (post.author.name) {
+        return post.author.name;
+      }
+    }
+    
+    return '미지정';
+  };
+
+  // 작성자 부서를 가져오는 함수
+  const getAuthorDepartment = (): string => {
+    if (!post.author) return '';
+    
+    if (typeof post.author === 'object' && post.author.department) {
+      return post.author.department;
+    }
+    
+    return '';
+  };
+
   // HTML 변환 함수
   const createMarkup = (content: string) => {
     return { __html: content };
@@ -223,11 +253,12 @@ export default function NewsPostDetail({ post }: NewsPostDetailProps) {
                   <Eye className="w-4 h-4 mr-1.5" />
                   <span>조회 {post.viewCount || 0}</span>
                 </div>
-                {post.author && (
-                  <div className="flex items-center">
-                    <span className="font-medium">{post.author.name}</span>
-                  </div>
-                )}
+                <div className="flex items-center">
+                  <span className="font-medium">{getAuthorName()}</span>
+                  {getAuthorDepartment() && (
+                    <span className="ml-1 text-gray-400">({getAuthorDepartment()})</span>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end">
