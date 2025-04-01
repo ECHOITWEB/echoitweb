@@ -2,33 +2,32 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Editor } from '@tinymce/tinymce-react';
-import { useForm, Controller } from 'react-hook-form';
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { TinyEditor } from '@/components/editor/tiny-editor';
+import FileUpload from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from '@/hooks/use-toast';
+import { AuthorSelect } from '@/components/forms/author-select';
+import { AlertCircle, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import dynamic from 'next/dynamic';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { toast } from "@/components/ui/use-toast";
-import { AlertCircle, Check, Edit, Loader2 } from 'lucide-react';
+
+// Tagify 컴포넌트 동적 임포트
+const TagifyComponent = dynamic(() => 
+  import('@yaireo/tagify/dist/react.tagify').then((mod) => mod.default), 
+  { ssr: false }
+);
+
+// CSS 클라이언트 사이드에서만 로드
+const TagifyCss = (): null => {
+  useEffect(() => {
+    import('@yaireo/tagify/dist/tagify.css');
+  }, []);
+  return null;
+};
 
 // ESG 카테고리 목록
 const CATEGORIES = [
@@ -36,54 +35,81 @@ const CATEGORIES = [
   { value: 'social', label: '사회' },
   { value: 'governance', label: '지배구조' },
   { value: 'sustainability', label: '지속가능성' },
-  { value: 'csr', label: '사회적책임' },
+  { value: 'report', label: '보고서' },
   { value: 'other', label: '기타' }
 ] as const;
 
 type CategoryType = typeof CATEGORIES[number]['value'];
 
-// 폼 데이터 타입 정의
+// 부서 목록
+const DEPARTMENTS = [
+  { value: 'management', label: '경영진' },
+  { value: 'esg_team', label: 'ESG팀' },
+  { value: 'sustainability', label: '지속가능경영팀' },
+  { value: 'csr', label: '사회공헌팀' },
+  { value: 'strategy', label: '전략기획' },
+  { value: 'other', label: '기타' }
+] as const;
+
+type DepartmentType = typeof DEPARTMENTS[number]['value'];
+
 interface ESGFormData {
-  title: {
-    ko: string;
-    en: string;
-  };
-  summary: {
-    ko: string;
-    en: string;
-  };
-  content: {
-    ko: string;
-    en: string;
-  };
+  title: string;
+  summary: string;
+  content: string;
   category: CategoryType;
-  publishDate: string;
+  author: string;
+  publishDate: Date;
   thumbnailUrl: string;
-  imageSource: string;
+  authorDepartment: DepartmentType;
+  tags: string[];
   isPublished: boolean;
   isMainFeatured: boolean;
 }
 
+interface FormError {
+  field: string;
+  message: string;
+}
+
+interface TagifyEvent {
+  detail: {
+    tagify: {
+      value: Array<{
+        value: string;
+        [key: string]: unknown;
+      }>;
+    };
+  };
+}
+
 // API 응답 타입
 interface ESGPost {
+  _id?: string;
   title?: {
     ko: string;
-    en: string;
+    en?: string;
   };
   summary?: {
     ko: string;
-    en: string;
+    en?: string;
   };
   content?: {
     ko: string;
-    en: string;
+    en?: string;
   };
   category?: string;
+  author?: {
+    _id?: string;
+    department?: string;
+    name?: string;
+  };
   publishDate?: string;
   thumbnailUrl?: string;
   imageSource?: string;
   isPublished?: boolean;
   isMainFeatured?: boolean;
+  tags?: string[];
 }
 
 interface ESGApiResponse {
@@ -94,27 +120,23 @@ interface ESGApiResponse {
 
 // 토큰을 가져오는 함수
 function getToken(): string | null {
-  // localStorage에서 토큰 시도
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken');
-    if (token) return token;
-    
-    try {
-      const sessionStr = localStorage.getItem('echoit_auth_token');
-      if (sessionStr) {
-        const session = JSON.parse(sessionStr);
-        if (session?.accessToken) return session.accessToken;
-      }
-    } catch (e) {
-      console.error('세션 파싱 오류:', e);
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const sessionStr = localStorage.getItem('echoit_auth_token');
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      return session.accessToken || null;
     }
+  } catch (e) {
+    console.error('세션 파싱 오류:', e);
   }
   
   return null;
 }
 
 // 로딩 컴포넌트
-function LoadingSpinner(): React.ReactElement {
+function LoadingSpinner(): JSX.Element {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -123,455 +145,466 @@ function LoadingSpinner(): React.ReactElement {
   );
 }
 
-// ESG 편집 폼 컴포넌트
+// 폼 컴포넌트
 function ESGEditForm({
-  form,
-  activeTab,
-  setActiveTab,
-  isSaving,
-  onSubmit,
-  handleGoBack,
+  formData,
+  setFormData,
+  handleSubmit,
+  isSubmitting,
+  errors,
+  selectedAuthor,
+  handleAuthorChange,
+  handleTagChange,
+  handleBackClick
 }: {
-  form: ReturnType<typeof useForm<ESGFormData>>;
-  activeTab: string;
-  setActiveTab: React.Dispatch<React.SetStateAction<string>>;
-  isSaving: boolean;
-  onSubmit: (data: ESGFormData) => Promise<void>;
-  handleGoBack: () => void;
-}): React.ReactElement {
+  formData: ESGFormData;
+  setFormData: React.Dispatch<React.SetStateAction<ESGFormData>>;
+  handleSubmit: (e: React.FormEvent) => Promise<void>;
+  isSubmitting: boolean;
+  errors: FormError[];
+  selectedAuthor: string;
+  handleAuthorChange: (authorId: string) => void;
+  handleTagChange: (e: TagifyEvent) => void;
+  handleBackClick: () => void;
+}): JSX.Element {
+  // Tagify 설정
+  const tagifySettings = {
+    maxTags: 10,
+    placeholder: "예: 환경, 사회공헌, 지배구조",
+    delimiters: ",",
+    dropdown: {
+      enabled: 0
+    }
+  };
+
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Tabs defaultValue="ko" value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex justify-between items-center mb-2">
-            <TabsList>
-              <TabsTrigger value="ko">한국어</TabsTrigger>
-              <TabsTrigger value="en">영어</TabsTrigger>
-            </TabsList>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="isPublished"
-                  checked={form.watch('isPublished')}
-                  onCheckedChange={(checked) => form.setValue('isPublished', checked)}
-                />
-                <Label htmlFor="isPublished">
-                  {form.watch('isPublished') ? '공개 중' : '비공개'}
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="isMainFeatured"
-                  checked={form.watch('isMainFeatured')}
-                  onCheckedChange={(checked) => form.setValue('isMainFeatured', checked)}
-                />
-                <Label htmlFor="isMainFeatured">
-                  {form.watch('isMainFeatured') ? '메인 노출' : '메인 비노출'}
-                </Label>
-              </div>
-            </div>
-          </div>
-          
-          <TabsContent value="ko" className="space-y-6">
-            <FormField
-              control={form.control}
-              name="title.ko"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>제목 (한국어) *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="제목을 입력하세요" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="summary.ko"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>요약 (한국어) *</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="ESG 내용 요약을 입력하세요" 
-                      className="min-h-[100px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="content.ko"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>내용 (한국어) *</FormLabel>
-                  <FormControl>
-                    <Controller
-                      name="content.ko"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Editor
-                          apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
-                          value={field.value}
-                          onEditorChange={(content: string) => field.onChange(content)}
-                          init={{
-                            height: 500,
-                            menubar: true,
-                            plugins: [
-                              'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                              'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                              'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-                            ],
-                            toolbar:
-                              'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
-                            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
-                          }}
-                        />
-                      )}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </TabsContent>
-          
-          <TabsContent value="en" className="space-y-6">
-            <FormField
-              control={form.control}
-              name="title.en"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title (English)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter title" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="summary.en"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Summary (English)</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Enter ESG summary" 
-                      className="min-h-[100px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="content.en"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Content (English)</FormLabel>
-                  <FormControl>
-                    <Controller
-                      name="content.en"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Editor
-                          apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
-                          value={field.value}
-                          onEditorChange={(content: string) => field.onChange(content)}
-                          init={{
-                            height: 500,
-                            menubar: true,
-                            plugins: [
-                              'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                              'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                              'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
-                            ],
-                            toolbar:
-                              'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
-                            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
-                          }}
-                        />
-                      )}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </TabsContent>
-        </Tabs>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>카테고리 *</FormLabel>
-                <Select 
-                  value={field.value} 
-                  onValueChange={field.onChange}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="카테고리 선택" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {CATEGORIES.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        {category.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="publishDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>발행일 *</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <FormField
-            control={form.control}
-            name="thumbnailUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>썸네일 URL</FormLabel>
-                <FormControl>
-                  <Input placeholder="썸네일 이미지 URL을 입력하세요" {...field} />
-                </FormControl>
-                <FormDescription>
-                  ESG 게시물 목록에 표시될 썸네일 이미지의 URL을 입력하세요.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="imageSource"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>배너 이미지 URL</FormLabel>
-                <FormControl>
-                  <Input placeholder="배너 이미지 URL을 입력하세요" {...field} />
-                </FormControl>
-                <FormDescription>
-                  ESG 상세 페이지 상단에 표시될 배너 이미지의 URL을 입력하세요.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <div className="flex justify-end space-x-4">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={handleGoBack}
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-6xl mx-auto p-6 bg-white rounded-lg shadow">
+      <TagifyCss />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            className="mr-2"
+            onClick={handleBackClick}
           >
-            취소
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            뒤로
           </Button>
-          <Button 
+          <h1 className="text-2xl font-bold">ESG 콘텐츠 수정</h1>
+        </div>
+        <div className="flex space-x-2">
+          <Button
             type="submit"
-            disabled={isSaving}
+            disabled={isSubmitting}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isSaving ? '저장 중...' : '저장하기'}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                저장 중...
+              </>
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                변경사항 저장
+              </>
+            )}
           </Button>
         </div>
-      </form>
-    </Form>
+      </div>
+      
+      {errors.length > 0 && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>오류</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc pl-5 space-y-1">
+              {errors.map((error, index) => (
+                <li key={index}>{error.message}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-6">
+          <div>
+            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+              제목 <span className="text-red-500">*</span>
+            </label>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="ESG 콘텐츠 제목을 입력하세요"
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="summary" className="block text-sm font-medium text-gray-700 mb-1">
+              요약 <span className="text-red-500">*</span>
+            </label>
+            <Input
+              id="summary"
+              value={formData.summary}
+              onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+              placeholder="내용을 간략하게 요약해 주세요"
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+              내용 <span className="text-red-500">*</span>
+            </label>
+            <TinyEditor
+              value={formData.content}
+              onChange={(content: string) => setFormData({ ...formData, content })}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
+              태그
+            </label>
+            <TagifyComponent
+              settings={tagifySettings}
+              onChange={handleTagChange}
+              value={formData.tags}
+              className="w-full border border-gray-300 rounded-md p-2"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              내용과 관련된 키워드를 입력하세요 (최대 10개). 쉼표로 구분됩니다.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+              카테고리 <span className="text-red-500">*</span>
+            </label>
+            <Select
+              value={formData.category}
+              onValueChange={(value) => setFormData({ ...formData, category: value as CategoryType })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="카테고리 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((category) => (
+                  <SelectItem key={category.value} value={category.value}>
+                    {category.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              작성자 <span className="text-red-500">*</span>
+            </label>
+            <AuthorSelect 
+              value={selectedAuthor} 
+              onChange={handleAuthorChange}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="authorDepartment" className="block text-sm font-medium text-gray-700 mb-1">
+              부서
+            </label>
+            <Select
+              value={formData.authorDepartment}
+              onValueChange={(value) => setFormData({ ...formData, authorDepartment: value as DepartmentType })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="부서 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {DEPARTMENTS.map((department) => (
+                  <SelectItem key={department.value} value={department.value}>
+                    {department.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label htmlFor="publishDate" className="block text-sm font-medium text-gray-700 mb-1">
+              발행일 <span className="text-red-500">*</span>
+            </label>
+            <DatePicker
+              date={formData.publishDate || new Date()}
+              setDate={(date) => setFormData({ ...formData, publishDate: date as Date })}
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="thumbnailUrl" className="block text-sm font-medium text-gray-700 mb-1">
+              대표 이미지
+            </label>
+            <FileUpload
+              onUploadComplete={(url) => setFormData({ ...formData, thumbnailUrl: url })}
+              currentImage={formData.thumbnailUrl}
+              variant="image"
+              label="대표 이미지 업로드"
+              description="ESG 포스트의 대표 이미지를 업로드하세요."
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              권장 크기: 800x600px, 최대 2MB
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2 pt-4">
+            <Checkbox
+              id="isPublished"
+              checked={formData.isPublished}
+              onCheckedChange={(checked) => 
+                setFormData({ ...formData, isPublished: checked === true })
+              }
+            />
+            <label
+              htmlFor="isPublished"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              콘텐츠 발행하기
+            </label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="isMainFeatured"
+              checked={formData.isMainFeatured}
+              onCheckedChange={(checked) => 
+                setFormData({ ...formData, isMainFeatured: checked === true })
+              }
+            />
+            <label
+              htmlFor="isMainFeatured"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              메인 페이지에 노출하기
+            </label>
+          </div>
+        </div>
+      </div>
+    </form>
   );
 }
 
-export default function EditESGPage(): React.ReactElement {
+export default function EditESGPage(): JSX.Element {
   const router = useRouter();
   const params = useParams();
-  const esgId = params.id as string;
+  const { toast } = useToast();
+  const id = params?.id as string;
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<FormError[]>([]);
+  const [selectedAuthor, setSelectedAuthor] = useState<string>('');
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const [showSuccess, setShowSuccess] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<string>('ko');
-
-  // React Hook Form 설정
-  const form = useForm<ESGFormData>({
-    defaultValues: {
-      title: { ko: '', en: '' },
-      summary: { ko: '', en: '' },
-      content: { ko: '', en: '' },
-      category: 'environment',
-      publishDate: new Date().toISOString().substring(0, 10),
-      thumbnailUrl: '',
-      imageSource: '',
-      isPublished: false,
-      isMainFeatured: false
-    }
+  // 폼 데이터 초기 상태
+  const [formData, setFormData] = useState<ESGFormData>({
+    title: '',
+    summary: '',
+    content: '',
+    category: 'environment',
+    author: '',
+    publishDate: new Date(),
+    thumbnailUrl: '',
+    authorDepartment: 'esg_team',
+    tags: [],
+    isPublished: false,
+    isMainFeatured: false
   });
 
-  // 데이터 로드
+  // 컴포넌트 마운트 시 ESG 데이터 로드
   useEffect(() => {
     async function loadESGData(): Promise<void> {
-      setIsLoading(true);
+      if (!id) return;
+      
       try {
-        // 기본 헤더
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-        
-        // localStorage에서 토큰 가져오기 (있는 경우에만)
         const token = getToken();
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+        if (!token) {
+          toast({
+            title: "인증 오류",
+            description: "로그인이 필요합니다.",
+            variant: "destructive"
+          });
+          router.push('/admin/login');
+          return;
         }
 
-        const response = await fetch(`/api/posts/esg/${esgId}`, { headers });
-        
+        const response = await fetch(`/api/posts/esg/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
         if (!response.ok) {
           throw new Error('ESG 데이터를 불러오는데 실패했습니다.');
         }
-        
-        const data = await response.json() as ESGApiResponse;
-        const post = data.post;
-        
-        if (!post) {
-          throw new Error('ESG 데이터가 없습니다.');
+
+        const data: ESGApiResponse = await response.json();
+        if (!data.success || !data.post) {
+          throw new Error(data.message || 'ESG 데이터를 불러오는데 실패했습니다.');
         }
-        
-        console.log('[디버그] 로드된 ESG 데이터:', post);
-        
-        // 날짜 포맷팅
-        const publishDate = post.publishDate 
-          ? new Date(post.publishDate).toISOString().substring(0, 10)
-          : new Date().toISOString().substring(0, 10);
-        
-        // 폼 데이터 설정
-        form.reset({
-          title: {
-            ko: post.title?.ko || '',
-            en: post.title?.en || ''
-          },
-          summary: {
-            ko: post.summary?.ko || '',
-            en: post.summary?.en || ''
-          },
-          content: {
-            ko: post.content?.ko || '',
-            en: post.content?.en || ''
-          },
+
+        // API 응답에서 폼 데이터로 변환
+        const post = data.post;
+        setFormData({
+          title: post.title?.ko || '',
+          summary: post.summary?.ko || '',
+          content: post.content?.ko || '',
           category: (post.category as CategoryType) || 'environment',
-          publishDate,
+          author: post.author?._id || '',
+          publishDate: post.publishDate ? new Date(post.publishDate) : new Date(),
           thumbnailUrl: post.thumbnailUrl || '',
-          imageSource: post.imageSource || '',
+          authorDepartment: (post.author?.department as DepartmentType) || 'esg_team',
+          tags: post.tags || [],
           isPublished: post.isPublished || false,
           isMainFeatured: post.isMainFeatured || false
         });
-        
-        setErrorMessage('');
+
+        setSelectedAuthor(post.author?._id || '');
       } catch (error) {
-        console.error('ESG 로딩 오류:', error);
-        setErrorMessage('ESG 데이터를 불러오는데 실패했습니다.');
+        console.error('ESG 데이터 로드 오류:', error);
         toast({
-          title: "데이터 로딩 실패",
-          description: "ESG 데이터를 불러오는데 실패했습니다.",
+          title: "데이터 로드 오류",
+          description: `데이터를 불러오는데 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
           variant: "destructive"
         });
       } finally {
         setIsLoading(false);
       }
     }
-    
-    if (esgId) {
-      loadESGData();
-    }
-  }, [esgId, form]);
+
+    loadESGData();
+  }, [id, router, toast]);
+
+  // 폼 유효성 검사
+  const validateForm = (): boolean => {
+    const newErrors: FormError[] = [];
+
+    if (!formData.title.trim()) newErrors.push({ field: 'title', message: '제목을 입력해주세요.' });
+    if (!formData.summary.trim()) newErrors.push({ field: 'summary', message: '요약을 입력해주세요.' });
+    if (!formData.content.trim()) newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
+    if (!formData.category) newErrors.push({ field: 'category', message: '카테고리를 선택해주세요.' });
+    if (!selectedAuthor) newErrors.push({ field: 'author', message: '작성자를 선택해주세요.' });
+    if (!formData.publishDate) newErrors.push({ field: 'publishDate', message: '발행일을 선택해주세요.' });
+
+    setErrors(newErrors);
+    return newErrors.length === 0;
+  };
 
   // 폼 제출 처리
-  const onSubmit = async (data: ESGFormData): Promise<void> => {
-    setIsSaving(true);
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      toast({
+        title: "입력 오류",
+        description: "필수 항목을 모두 입력해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
     try {
-      // 기본 헤더
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      // localStorage에서 토큰 가져오기 (있는 경우에만)
       const token = getToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      if (!token) {
+        toast({
+          title: "인증 오류",
+          description: "로그인이 필요합니다.",
+          variant: "destructive"
+        });
+        router.push('/admin/login');
+        return;
       }
 
-      console.log('[디버그] ESG 수정 요청 데이터:', data);
-      
-      const response = await fetch(`/api/posts/esg/${esgId}`, {
+      // API 요청 형식에 맞게 데이터 변환
+      const apiData = {
+        title: {
+          ko: formData.title,
+          en: formData.title, // 영문 동일하게 처리 (실제로는 분리해야 함)
+        },
+        summary: {
+          ko: formData.summary,
+          en: formData.summary, // 영문 동일하게 처리
+        },
+        content: {
+          ko: formData.content,
+          en: formData.content, // 영문 동일하게 처리
+        },
+        category: formData.category,
+        author: selectedAuthor,
+        authorDepartment: formData.authorDepartment,
+        publishDate: formData.publishDate.toISOString(),
+        thumbnailUrl: formData.thumbnailUrl,
+        tags: formData.tags,
+        isPublished: formData.isPublished,
+        isMainFeatured: formData.isMainFeatured
+      };
+
+      const response = await fetch(`/api/posts/esg/${id}`, {
         method: 'PATCH',
-        headers,
-        body: JSON.stringify(data)
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(apiData)
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json() as { message?: string };
-        throw new Error(errorData.message || 'ESG 업데이트에 실패했습니다.');
+        throw new Error(`${response.status} ${response.statusText}`);
       }
+
+      const result: ESGApiResponse = await response.json();
       
-      const result = await response.json();
-      console.log('[디버그] ESG 수정 결과:', result);
-      
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-      
+      if (result.success) {
+        toast({
+          title: "저장 완료",
+          description: "ESG 콘텐츠가 성공적으로 업데이트되었습니다.",
+        });
+        router.push('/admin/esg');
+      } else {
+        throw new Error(result.message || '알 수 없는 오류가 발생했습니다.');
+      }
+    } catch (error) {
+      console.error('ESG 데이터 저장 오류:', error);
       toast({
-        title: "저장 성공",
-        description: "ESG 내용이 성공적으로 저장되었습니다."
-      });
-    } catch (error: unknown) {
-      console.error('ESG 저장 오류:', error);
-      const errorMsg = error instanceof Error ? error.message : 'ESG 저장 중 오류가 발생했습니다.';
-      setErrorMessage(errorMsg);
-      
-      toast({
-        title: "저장 실패",
-        description: errorMsg,
+        title: "저장 오류",
+        description: `콘텐츠를 저장하는데 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
         variant: "destructive"
       });
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
     }
   };
 
-  // 목록으로 돌아가기
-  const handleGoBack = (): void => {
+  // 작성자 변경 처리
+  const handleAuthorChange = (authorId: string): void => {
+    setSelectedAuthor(authorId);
+    setFormData({ ...formData, author: authorId });
+  };
+
+  // 태그 변경 처리
+  const handleTagChange = (e: TagifyEvent): void => {
+    const newTags = e.detail.tagify.value.map(tag => tag.value);
+    setFormData({ ...formData, tags: newTags });
+  };
+
+  // 뒤로 가기 처리
+  const handleBackClick = (): void => {
     router.push('/admin/esg');
   };
 
@@ -580,42 +613,17 @@ export default function EditESGPage(): React.ReactElement {
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">ESG 게시물 수정</h1>
-        <Button 
-          variant="outline" 
-          onClick={handleGoBack}
-        >
-          목록으로 돌아가기
-        </Button>
-      </div>
-      
-      {errorMessage && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>오류</AlertTitle>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      )}
-      
-      {showSuccess && (
-        <Alert variant="default" className="mb-6 bg-green-50 border-green-200">
-          <Check className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-800">저장 완료</AlertTitle>
-          <AlertDescription className="text-green-700">
-            ESG 내용이 성공적으로 저장되었습니다.
-          </AlertDescription>
-        </Alert>
-      )}
-      
+    <div className="min-h-screen bg-gray-50 py-8">
       <ESGEditForm
-        form={form}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isSaving={isSaving}
-        onSubmit={onSubmit}
-        handleGoBack={handleGoBack}
+        formData={formData}
+        setFormData={setFormData}
+        handleSubmit={handleSubmit}
+        isSubmitting={isSubmitting}
+        errors={errors}
+        selectedAuthor={selectedAuthor}
+        handleAuthorChange={handleAuthorChange}
+        handleTagChange={handleTagChange}
+        handleBackClick={handleBackClick}
       />
     </div>
   );
