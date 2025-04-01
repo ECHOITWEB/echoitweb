@@ -14,11 +14,11 @@ interface ExtendedUserInfo extends Omit<UserInfo, 'name'> {
 }
 
 // 표시할 이름 처리 함수
-const getDisplayName = (name: string | { first: string; last: string }): string => {
+const getDisplayName = (name: string | { first: string; last: string } | undefined): string => {
   if (!name) return '미지정';
   
   if (typeof name === 'string') {
-    return name;
+    return name.trim() || '미지정';
   }
   
   // 객체인 경우 first와 last를 조합
@@ -136,6 +136,8 @@ export function AuthorSelect({ value, onChange, required = false }: AuthorSelect
           )}
           {loading ? (
             <SelectItem value="loading" disabled>로딩 중...</SelectItem>
+          ) : users.length === 0 ? (
+            <SelectItem value="no_users" disabled>사용자가 없습니다</SelectItem>
           ) : (
             users.map((user) => (
               <SelectItem key={user.id} value={user.id}>

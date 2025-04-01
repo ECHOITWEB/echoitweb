@@ -501,35 +501,38 @@ export default function EditESGPage(): JSX.Element {
     loadESGData();
   }, [id, router, toast]);
 
-  // 폼 유효성 검사
-  const validateForm = (): boolean => {
-    const newErrors: FormError[] = [];
-
-    if (!formData.title.trim()) newErrors.push({ field: 'title', message: '제목을 입력해주세요.' });
-    if (!formData.summary.trim()) newErrors.push({ field: 'summary', message: '요약을 입력해주세요.' });
-    if (!formData.content.trim()) newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
-    if (!formData.category) newErrors.push({ field: 'category', message: '카테고리를 선택해주세요.' });
-    if (!selectedAuthor) newErrors.push({ field: 'author', message: '작성자를 선택해주세요.' });
-    if (!formData.publishDate) newErrors.push({ field: 'publishDate', message: '발행일을 선택해주세요.' });
-
-    setErrors(newErrors);
-    return newErrors.length === 0;
-  };
-
   // 폼 제출 처리
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-
-    if (!validateForm()) {
+    
+    // 필수 항목 검증
+    const newErrors: FormError[] = [];
+    
+    if (!formData.title) {
+      newErrors.push({ field: 'title', message: '제목을 입력해주세요.' });
+    }
+    
+    if (!formData.content) {
+      newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
+    }
+    
+    if (!formData.category) {
+      newErrors.push({ field: 'category', message: '카테고리를 선택해주세요.' });
+    }
+    
+    // 오류가 있으면 처리 중단
+    if (newErrors.length > 0) {
+      setErrors(newErrors);
       toast({
-        title: "입력 오류",
+        title: "필수 정보 누락",
         description: "필수 항목을 모두 입력해주세요.",
         variant: "destructive"
       });
       return;
     }
-
+    
     setIsSubmitting(true);
+    setErrors([]);
     
     try {
       const token = getToken();
@@ -539,33 +542,35 @@ export default function EditESGPage(): JSX.Element {
           description: "로그인이 필요합니다.",
           variant: "destructive"
         });
-        router.push('/admin/login');
         return;
       }
 
-      // API 요청 형식에 맞게 데이터 변환
-      const apiData = {
+      // 다국어 제목, 요약, 내용 구성
+      const postData = {
         title: {
           ko: formData.title,
-          en: formData.title, // 영문 동일하게 처리 (실제로는 분리해야 함)
+          en: formData.title // 영문 버전은 한글과 동일하게 설정 (나중에 필요시 변경)
         },
         summary: {
           ko: formData.summary,
-          en: formData.summary, // 영문 동일하게 처리
+          en: formData.summary
         },
         content: {
           ko: formData.content,
-          en: formData.content, // 영문 동일하게 처리
+          en: formData.content
         },
         category: formData.category,
-        author: selectedAuthor === 'current_user' ? '' : selectedAuthor,
-        authorDepartment: formData.authorDepartment,
-        publishDate: formData.publishDate.toISOString(),
+        publishDate: formData.publishDate,
         thumbnailUrl: formData.thumbnailUrl,
-        tags: formData.tags,
+        imageSource: formData.thumbnailUrl,
         isPublished: formData.isPublished,
-        isMainFeatured: formData.isMainFeatured
+        isMainFeatured: formData.isMainFeatured,
+        tags: formData.tags,
+        author: selectedAuthor, // 선택된 작성자 ID
+        authorDepartment: formData.authorDepartment
       };
+      
+      console.log('ESG 업데이트 데이터:', postData);
 
       const response = await fetch(`/api/posts/esg/${id}`, {
         method: 'PATCH',
@@ -573,29 +578,28 @@ export default function EditESGPage(): JSX.Element {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(apiData)
+        body: JSON.stringify(postData)
       });
 
       if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.message || '업데이트 중 오류가 발생했습니다.');
       }
 
-      const result: ESGApiResponse = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: "저장 완료",
-          description: "ESG 콘텐츠가 성공적으로 업데이트되었습니다.",
-        });
-        router.push('/admin/esg');
-      } else {
-        throw new Error(result.message || '알 수 없는 오류가 발생했습니다.');
-      }
-    } catch (error) {
-      console.error('ESG 데이터 저장 오류:', error);
       toast({
-        title: "저장 오류",
-        description: `콘텐츠를 저장하는데 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+        title: "업데이트 완료",
+        description: "ESG 콘텐츠가 성공적으로 업데이트되었습니다.",
+      });
+      
+      // 저장 후 목록 페이지로 이동
+      setTimeout(() => {
+        router.push('/admin/esg');
+      }, 1000);
+    } catch (error) {
+      console.error('ESG 업데이트 오류:', error);
+      toast({
+        title: "업데이트 오류",
+        description: `업데이트 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
         variant: "destructive"
       });
     } finally {

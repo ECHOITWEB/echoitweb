@@ -164,7 +164,8 @@ export default function AdminNewsPage() {
         const response = await fetch('/api/posts/news?withCounts=true', {
           method: 'GET',
           headers,
-          cache: 'no-store'
+          cache: 'no-store',
+          next: { revalidate: 0 }
         });
         
         console.log('뉴스 API 응답 상태:', response.status, response.statusText);
@@ -181,7 +182,8 @@ export default function AdminNewsPage() {
             const retryResponse = await fetch('/api/posts/news?withCounts=true', {
               method: 'GET',
               headers,
-              cache: 'no-store'
+              cache: 'no-store',
+              next: { revalidate: 0 }
             });
             
             if (retryResponse.ok) {
@@ -242,7 +244,8 @@ export default function AdminNewsPage() {
         const dashboardResponse = await fetch('/api/dashboard/realtime', {
           method: 'GET',
           headers,
-          cache: 'no-store'
+          cache: 'no-store',
+          next: { revalidate: 0 }
         });
         
         if (dashboardResponse.ok) {
@@ -556,6 +559,53 @@ export default function AdminNewsPage() {
     }
   };
 
+  // 작성자 이름 표시 처리
+  const getAuthorName = (author: any): string => {
+    if (!author) return '미지정';
+    
+    // author가 문자열(ID)인 경우
+    if (typeof author === 'string') return '미지정';
+    
+    // author가 객체인 경우
+    if (typeof author === 'object') {
+      if (author.name) {
+        if (typeof author.name === 'string') {
+          return author.name;
+        } else if (typeof author.name === 'object' && (author.name.first || author.name.last)) {
+          return `${author.name.first || ''} ${author.name.last || ''}`.trim();
+        }
+      }
+      
+      if (author.id || author._id) {
+        return '미지정';
+      }
+    }
+    
+    return '미지정';
+  };
+
+  // 작성자 부서 표시 처리
+  const getAuthorDepartment = (author: any): string => {
+    if (!author) return '미지정';
+    
+    // author가 문자열(ID)인 경우
+    if (typeof author === 'string') return '미지정';
+    
+    // author가 객체인 경우
+    if (typeof author === 'object' && author.department) {
+      switch (author.department) {
+        case 'management': return '경영진';
+        case 'news_team': return '뉴스팀';
+        case 'editor': return '편집부';
+        case 'reporter': return '취재기자';
+        case 'strategy': return '전략기획';
+        default: return author.department;
+      }
+    }
+    
+    return '미지정';
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -653,8 +703,8 @@ export default function AdminNewsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex flex-col">
-                        <span className="font-medium">{post.author?.name || '미지정'}</span>
-                        <span className="text-xs text-gray-500">{post.author?.department || ''}</span>
+                        <span className="font-medium">{getAuthorName(post.author)}</span>
+                        <span className="text-xs text-gray-500">{getAuthorDepartment(post.author)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">

@@ -172,7 +172,8 @@ export default function AdminESGPage() {
         const response = await fetch('/api/posts/esg?withCounts=true', {
           method: 'GET',
           headers,
-          cache: 'no-store'
+          cache: 'no-store',
+          next: { revalidate: 0 }
         });
         
         console.log('ESG API 응답 상태:', response.status, response.statusText);
@@ -189,7 +190,8 @@ export default function AdminESGPage() {
             const retryResponse = await fetch('/api/posts/esg?withCounts=true', {
               method: 'GET',
               headers,
-              cache: 'no-store'
+              cache: 'no-store',
+              next: { revalidate: 0 }
             });
             
             if (retryResponse.ok) {
@@ -298,6 +300,12 @@ export default function AdminESGPage() {
         // 삭제 성공
         setPosts(posts.filter(post => post._id !== postToDelete));
         setTotalPosts(prev => prev - 1);
+        
+        // 페이지 데이터 완전 새로고침
+        setTimeout(() => {
+          loadPosts();
+        }, 500);
+        
         setSuccessMessage('ESG 포스트가 성공적으로 삭제되었습니다.');
         toast({
           title: "포스트 삭제 완료",
@@ -357,9 +365,14 @@ export default function AdminESGPage() {
         );
         setPosts(updatedPosts);
         
+        // 페이지 데이터 새로고침
+        setTimeout(() => {
+          loadPosts();
+        }, 500);
+        
         // 토스트 메시지 표시
         toast({
-          title: post.isPublished ? "포스트 비공개 처리됨" : "포스트 공개 처리됨",
+          title: post.isPublished ? "비공개로 변경됨" : "발행 상태로 변경됨",
           description: `"${post.title.ko}" 포스트가 ${post.isPublished ? '비공개' : '공개'} 상태로 변경되었습니다.`,
           variant: "default",
         });
@@ -410,6 +423,11 @@ export default function AdminESGPage() {
         );
         setPosts(updatedPosts);
         
+        // 페이지 데이터 새로고침
+        setTimeout(() => {
+          loadPosts();
+        }, 500);
+        
         // 토스트 메시지 표시
         toast({
           title: post.isMainFeatured ? "주요 콘텐츠에서 제거됨" : "주요 콘텐츠로 설정됨",
@@ -437,16 +455,49 @@ export default function AdminESGPage() {
 
   // 작성자 이름 표시 처리
   const getAuthorName = (author: any): string => {
-    if (!author) return '관리자';
-    if (typeof author === 'string') return author;
-    return author.name || '관리자';
+    if (!author) return '미지정';
+    
+    // author가 문자열(ID)인 경우
+    if (typeof author === 'string') return '미지정';
+    
+    // author가 객체인 경우
+    if (typeof author === 'object') {
+      if (author.name) {
+        if (typeof author.name === 'string') {
+          return author.name;
+        } else if (typeof author.name === 'object' && (author.name.first || author.name.last)) {
+          return `${author.name.first || ''} ${author.name.last || ''}`.trim();
+        }
+      }
+      
+      if (author.id || author._id) {
+        return '미지정';
+      }
+    }
+    
+    return '미지정';
   };
 
   // 작성자 부서 표시 처리
   const getAuthorDepartment = (author: any): string => {
-    if (!author) return '운영자';
-    if (typeof author === 'string') return '운영자';
-    return author.department || '운영자';
+    if (!author) return '미지정';
+    
+    // author가 문자열(ID)인 경우
+    if (typeof author === 'string') return '미지정';
+    
+    // author가 객체인 경우
+    if (typeof author === 'object' && author.department) {
+      switch (author.department) {
+        case 'management': return '경영진';
+        case 'esg_team': return 'ESG팀';
+        case 'sustainability': return '지속가능경영팀';
+        case 'csr': return '사회공헌팀';
+        case 'strategy': return '전략기획';
+        default: return author.department;
+      }
+    }
+    
+    return '미지정';
   };
 
   return (
