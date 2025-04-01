@@ -377,6 +377,40 @@ function NewsEditForm({
   );
 }
 
+/**
+ * 작성자 이름을 가져오는 함수
+ */
+function getAuthorName(author: any): string {
+  if (!author) return '미지정';
+  
+  if (typeof author === 'string') {
+    return author;
+  }
+  
+  if (typeof author === 'object') {
+    if (author.name) return author.name;
+    if (author._id) return author._id;
+  }
+  
+  return '미지정';
+}
+
+/**
+ * 작성자 부서를 가져오는 함수
+ */
+function getAuthorDepartment(author: any): DepartmentType {
+  if (!author) return 'other';
+  
+  if (typeof author === 'object' && author.department) {
+    // 부서명이 DepartmentType에 있는지 확인
+    const dept = author.department as string;
+    const isValidDept = DEPARTMENTS.some(d => d.value === dept);
+    return isValidDept ? (dept as DepartmentType) : 'other';
+  }
+  
+  return 'other';
+}
+
 export default function EditNewsPage(): JSX.Element {
   const router = useRouter();
   const params = useParams();
@@ -440,10 +474,17 @@ export default function EditNewsPage(): JSX.Element {
         
         // 작성자 정보 설정
         let authorId = 'current_user';
-        if (post.author && post.author._id) {
-          authorId = post.author._id;
+        if (post.author) {
+          if (typeof post.author === 'string') {
+            authorId = post.author;
+          } else if (post.author._id) {
+            authorId = post.author._id;
+          }
         }
         setSelectedAuthor(authorId);
+        
+        // 부서 정보 확인
+        const authorDepartment = getAuthorDepartment(post.author);
         
         // 폼 데이터 설정
         setFormData({
@@ -454,7 +495,7 @@ export default function EditNewsPage(): JSX.Element {
           author: authorId,
           publishDate: post.publishDate ? new Date(post.publishDate) : new Date(),
           imageSource: post.imageSource || '',
-          authorDepartment: (post.author?.department as DepartmentType) || 'tech_team',
+          authorDepartment: authorDepartment,
           tags: post.tags || [],
           originalUrl: post.originalUrl || '',
           isPublished: post.isPublished || false,
@@ -514,21 +555,13 @@ export default function EditNewsPage(): JSX.Element {
     setIsSubmitting(true);
 
     try {
-      // 작성자 정보 처리
-      let authorData = selectedAuthor;
-      
-      // 기본값이 'current_user'인 경우 공백으로 설정하여 API가 현재 사용자를 사용하도록 함
-      if (selectedAuthor === 'current_user') {
-        authorData = '';
-      }
-      
       // 백엔드에 맞게 데이터 형식 변환
       const apiData = {
         title: { ko: formData.title },
         summary: { ko: formData.summary },
         content: { ko: formData.content },
         category: formData.category,
-        author: authorData,
+        author: selectedAuthor !== 'current_user' ? selectedAuthor : '',
         publishDate: formData.publishDate,
         imageSource: formData.imageSource,
         authorDepartment: formData.authorDepartment,
