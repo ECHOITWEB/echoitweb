@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublishedESGPosts } from '@/lib/services/posts';
+import { connectToDatabase } from '@/lib/db/connect';
+import ESGPostModel from '@/lib/db/models/ESGPost';
 
 // 정적 생성에서 제외 (동적 라우트로 설정)
 export const dynamic = 'force-dynamic';
