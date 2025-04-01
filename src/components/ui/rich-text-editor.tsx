@@ -38,7 +38,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       <div className={`border ${isInvalid ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-md`}>
         <Editor
           apiKey="no-api-key" // TinyMCE API 키 (개발용으로는 no-api-key 사용)
-          onInit={(evt, editor) => (editorRef.current = editor)}
+          onInit={(evt: any, editor: any) => (editorRef.current = editor)}
           value={value}
           onEditorChange={handleEditorChange}
           init={{
