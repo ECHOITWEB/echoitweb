@@ -457,21 +457,13 @@ export default function AdminESGPage() {
   const getAuthorName = (author: any): string => {
     if (!author) return '미지정';
     
-    // author가 문자열(ID)인 경우
-    if (typeof author === 'string') return '미지정';
+    if (typeof author === 'string') {
+      return '미지정';
+    }
     
-    // author가 객체인 경우
     if (typeof author === 'object') {
       if (author.name) {
-        if (typeof author.name === 'string') {
-          return author.name;
-        } else if (typeof author.name === 'object' && (author.name.first || author.name.last)) {
-          return `${author.name.first || ''} ${author.name.last || ''}`.trim();
-        }
-      }
-      
-      if (author.id || author._id) {
-        return '미지정';
+        return author.name;
       }
     }
     
@@ -502,79 +494,54 @@ export default function AdminESGPage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">ESG 관리</h1>
-        <Link href="/admin/esg/create">
-          <Button className="bg-indigo-600 hover:bg-indigo-700">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            새 ESG 작성
-          </Button>
-        </Link>
-      </div>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">ESG 콘텐츠 관리</h1>
+          <Link href="/admin/esg/new">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <PlusCircle className="h-4 w-4 mr-2" />
+              새 ESG 콘텐츠
+            </Button>
+          </Link>
+        </div>
 
-      {successMessage && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded flex items-center mb-4">
-          <CheckCircle className="h-5 w-5 mr-2" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-      
-      {errorMessage && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded flex items-center mb-4">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          <p>{errorMessage}</p>
-        </div>
-      )}
-      
-      <div className="bg-white shadow overflow-hidden rounded-lg">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  대표이미지
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  제목
-                </th>
-                <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  날짜
-                </th>
-                <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  카테고리
-                </th>
-                <th scope="col" className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  작성자
-                </th>
-                <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  발행 상태
-                </th>
-                <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  주요 뉴스
-                </th>
-                <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  작업
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {isLoading ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan={8} className="px-6 py-4 whitespace-nowrap text-center text-gray-500">
-                    <div className="flex justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                      <span className="ml-2">로딩 중...</span>
-                    </div>
-                  </td>
+                  <th scope="col" className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    대표이미지
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    제목
+                  </th>
+                  <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    날짜
+                  </th>
+                  <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    카테고리
+                  </th>
+                  <th scope="col" className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    작성자
+                  </th>
+                  <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    발행 상태
+                  </th>
+                  <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    주요 뉴스
+                  </th>
+                  <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    작업
+                  </th>
                 </tr>
-              ) : posts.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-4 whitespace-nowrap text-center text-gray-500">
-                    ESG 포스트가 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                posts.map((post) => (
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {posts.map((post) => (
                   <tr key={post._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center justify-center h-16 w-16 overflow-hidden rounded-md">
@@ -652,11 +619,11 @@ export default function AdminESGPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
       
       {/* 삭제 확인 대화상자 */}
