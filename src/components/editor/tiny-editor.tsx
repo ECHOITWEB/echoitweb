@@ -38,7 +38,7 @@ export function TinyEditor({ value, onChange }: TinyEditorProps) {
   return (
     <Editor
       apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY}
-      onInit={(evt: any, editor) => editorRef.current = editor}
+      onInit={(evt: any, editor: any) => editorRef.current = editor}
       value={value}
       onEditorChange={onChange}
       init={{
