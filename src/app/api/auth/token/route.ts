@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         role: user.role 
       },
       jwtSecret,
-      { expiresIn: accessTokenExpiry }
+      { expiresIn: '1h' }
     );
 
     const newRefreshToken = jwt.sign(
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         email: user.email
       },
       jwtSecret,
-      { expiresIn: refreshTokenExpiry }
+      { expiresIn: '1h' }
     );
 
     console.log(`토큰 갱신 성공: 사용자 ID ${userId}`);
