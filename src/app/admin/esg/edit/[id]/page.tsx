@@ -115,132 +115,8 @@ export default function EditESGPage(): JSX.Element {
     originalPath: ''
   });
 
-  // 폼 제출 처리
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault();
-    
-    try {
-      setIsSubmitting(true);
-      setErrors([]);
-
-      // 폼 유효성 검사
-      const newErrors: FormError[] = [];
-      if (!formData.title) {
-        newErrors.push({ field: 'title', message: '제목을 입력해주세요.' });
-      }
-      if (!formData.content) {
-        newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
-      }
-      
-      // 이미지 경로 검사 - 썸네일 또는 원본 이미지 중 하나는 반드시 있어야 함
-      const hasImage = 
-        (formData.thumbnailPath && formData.thumbnailPath.length > 0) || 
-        (formData.originalPath && formData.originalPath.length > 0) || 
-        (formData.imageSource && typeof formData.imageSource === 'object' && 
-         ((formData.imageSource.thumbnail && formData.imageSource.thumbnail.length > 0) || 
-          (formData.imageSource.original && formData.imageSource.original.length > 0)));
-      
-      if (!hasImage) {
-        newErrors.push({ field: 'image', message: '대표 이미지를 업로드해주세요.' });
-      }
-
-      if (newErrors.length > 0) {
-        setErrors(newErrors);
-        setIsSubmitting(false);
-        toast({
-          title: "입력 오류",
-          description: "필수 정보를 모두 입력해주세요.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // 토큰 가져오기
-      const token = getToken();
-      if (!token) {
-        toast({
-          title: "인증 오류",
-          description: "로그인이 필요합니다.",
-          variant: "destructive",
-        });
-        router.push('/admin/login');
-        return;
-      }
-
-      // 이미지 소스 정보 구성 - 폼에서 설정한 정보 우선 사용
-      const imageSource = {
-        thumbnail: formData.thumbnailPath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.thumbnail : ''),
-        medium: formData.mediumPath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.medium : ''),
-        large: formData.largePath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.large : ''),
-        original: formData.originalPath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.original : '')
-      };
-
-      console.log('제출할 이미지 데이터:', imageSource);
-
-      // API 요청
-      const response = await fetch(`/api/posts/esg/${params.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          title: { ko: formData.title },
-          summary: { ko: formData.summary },
-          content: { ko: formData.content },
-          category: formData.category,
-          author: formData.author,
-          publishDate: formData.publishDate,
-          imageSource,
-          tags: formData.tags,
-          isPublished: formData.isPublished,
-          isMainFeatured: formData.isMainFeatured,
-          originalUrl: formData.originalUrl
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('ESG 업데이트 오류:', data);
-        throw new Error(data.message || '업데이트 중 오류가 발생했습니다.');
-      }
-
-      toast({
-        title: "성공",
-        description: "ESG 게시물이 성공적으로 업데이트되었습니다.",
-      });
-
-      // 목록 페이지로 이동
-      router.push('/admin/esg');
-    } catch (error) {
-      console.error('ESG 업데이트 오류:', error);
-      toast({
-        title: "업데이트 실패",
-        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // 작성자 변경 처리
-  const handleAuthorChange = (authorId: string): void => {
-    setSelectedAuthor(authorId);
-    setFormData({ ...formData, author: authorId });
-  };
-
-  // 태그 변경 처리
-  const handleTagChange = (e: TagifyEvent): void => {
-    const newTags = e.detail.tagify.value.map(tag => tag.value);
-    setFormData({ ...formData, tags: newTags });
-  };
-
-  // 뒤로 가기 처리
-  const handleBackClick = (): void => {
-    router.push('/admin/esg');
-  };
+  // 작성자 옵션 상태 (예제: 현재 사용자만 존재하는 옵션)
+  const [authorOptions, setAuthorOptions] = useState<{ label: string; value: string }[]>([]);
 
   // 컴포넌트 마운트 시 ESG 데이터 로드
   useEffect(() => {
@@ -344,6 +220,133 @@ export default function EditESGPage(): JSX.Element {
     loadESGData();
   }, [id, router, toast]);
 
+  // 폼 제출 처리
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    
+    try {
+      setIsSubmitting(true);
+      setErrors([]);
+
+      // 폼 유효성 검사
+      const newErrors: FormError[] = [];
+      if (!formData.title) {
+        newErrors.push({ field: 'title', message: '제목을 입력해주세요.' });
+      }
+      if (!formData.content) {
+        newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
+      }
+      
+      // 이미지 경로 검사 - 썸네일 또는 원본 이미지 중 하나는 반드시 있어야 함
+      const hasImage = 
+        (formData.thumbnailPath && formData.thumbnailPath.length > 0) || 
+        (formData.originalPath && formData.originalPath.length > 0) || 
+        (formData.imageSource && typeof formData.imageSource === 'object' && 
+         ((formData.imageSource.thumbnail && formData.imageSource.thumbnail.length > 0) || 
+          (formData.imageSource.original && formData.imageSource.original.length > 0)));
+      
+      if (!hasImage) {
+        newErrors.push({ field: 'image', message: '대표 이미지를 업로드해주세요.' });
+      }
+
+      if (newErrors.length > 0) {
+        setErrors(newErrors);
+        setIsSubmitting(false);
+        toast({
+          title: "입력 오류",
+          description: "필수 정보를 모두 입력해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 토큰 가져오기
+      const token = getToken();
+      if (!token) {
+        toast({
+          title: "인증 오류",
+          description: "로그인이 필요합니다.",
+          variant: "destructive",
+        });
+        router.push('/admin/login');
+        return;
+      }
+
+      // 이미지 소스 정보 구성 - 폼에서 설정한 정보 우선 사용
+      const imageSource = {
+        thumbnail: formData.thumbnailPath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.thumbnail : ''),
+        medium: formData.mediumPath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.medium : ''),
+        large: formData.largePath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.large : ''),
+        original: formData.originalPath || (formData.imageSource && typeof formData.imageSource === 'object' ? formData.imageSource.original : '')
+      };
+
+      console.log('제출할 이미지 데이터:', imageSource);
+
+      // API 요청
+      const response = await fetch(`/api/posts/esg/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: { ko: formData.title },
+          summary: { ko: formData.summary },
+          content: { ko: formData.content },
+          category: formData.category,
+          author: formData.author,
+          publishDate: formData.publishDate,
+          imageSource,
+          tags: formData.tags,
+          isPublished: formData.isPublished,
+          isMainFeatured: formData.isMainFeatured,
+          originalUrl: formData.originalUrl
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('ESG 업데이트 오류:', data);
+        throw new Error(data.message || '업데이트 중 오류가 발생했습니다.');
+      }
+
+      toast({
+        title: "성공",
+        description: "ESG 게시물이 성공적으로 업데이트되었습니다.",
+      });
+
+      // 목록 페이지로 이동
+      router.push('/admin/esg');
+    } catch (error) {
+      console.error('ESG 업데이트 오류:', error);
+      toast({
+        title: "업데이트 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 작성자 변경 처리
+  const handleAuthorChange = (authorId: string): void => {
+    setSelectedAuthor(authorId);
+    setFormData({ ...formData, author: authorId });
+  };
+
+  // 태그 변경 처리
+  const handleTagChange = (e: TagifyEvent): void => {
+    const newTags = e.detail.tagify.value.map(tag => tag.value);
+    setFormData({ ...formData, tags: newTags });
+  };
+
+  // 뒤로 가기 처리
+  const handleBackClick = (): void => {
+    router.push('/admin/esg');
+  };
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -363,7 +366,8 @@ export default function EditESGPage(): JSX.Element {
         contentType="esg"
         isEditMode={true}
         categories={ESG_CATEGORIES}
+        authorOptions={authorOptions}
       />
     </div>
   );
-} 
+}

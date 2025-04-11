@@ -85,9 +85,7 @@ export default function CreateESGPage(): JSX.Element {
   });
 
   // 작성자 옵션 상태 (예제: 현재 사용자만 존재하는 옵션)
-  const [authorOptions, setAuthorOptions] = useState<{ label: string; value: string }[]>([
-    { label: '현재 사용자', value: 'current_user' }
-  ]);
+  const [authorOptions, setAuthorOptions] = useState<{ label: string; value: string }[]>([]);
 
   // 필요시, 실제 사용자 목록을 API로 불러오는 예제
   /*

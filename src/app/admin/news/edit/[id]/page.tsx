@@ -118,6 +118,8 @@ export default function EditNewsPage(): JSX.Element {
     originalPath: ''
   });
 
+  const [authorOptions, setAuthorOptions] = useState<{ value: string; label: string }[]>([]);
+
   // 데이터 로드
   useEffect(() => {
     async function loadNewsData(): Promise<void> {
@@ -369,6 +371,7 @@ export default function EditNewsPage(): JSX.Element {
         contentType="news"
         isEditMode={true}
         categories={NEWS_CATEGORIES}
+        authorOptions={authorOptions}
       />
     </div>
   );
