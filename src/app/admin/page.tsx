@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 import DashboardSkeleton from '@/components/admin/dashboard/DashboardSkeleton';
 import { useAuth } from '@/context/auth-context';
+import { BarChart as RechartsBarChart } from 'recharts';
 
 // 대시보드 페이지 컴포넌트
 export const dynamic = 'force-dynamic';
@@ -125,14 +126,14 @@ export default function AdminDashboardPage() {
       </CardHeader>
       <CardContent className="pl-2">
         <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={data}>
+          <RechartsBarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />
             <YAxis />
             <Tooltip />
             <Legend />
             <Bar dataKey={dataKey} fill={color} />
-          </BarChart>
+          </RechartsBarChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
@@ -284,7 +285,7 @@ export default function AdminDashboardPage() {
             {isLoading && <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />}
           </h2>
           <div className="space-y-4">
-            {dashboardData?.recentNews?.slice(0, 3).map((news, index) => (
+            {dashboardData?.recentNews?.slice(0, 3).map((news: any, index: number) => (
               <div key={`news-${index}`} className="flex items-start">
                 <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30 text-gray-700 dark:text-gray-300 mr-3">
                   <Newspaper className="w-4 h-4" />
@@ -306,7 +307,7 @@ export default function AdminDashboardPage() {
               </div>
             ))}
 
-            {dashboardData?.recentESG?.slice(0, 3).map((esg, index) => (
+            {dashboardData?.recentESG?.slice(0, 3).map((esg: any, index: number) => (
               <div key={`esg-${index}`} className="flex items-start">
                 <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/30 text-gray-700 dark:text-gray-300 mr-3">
                   <Leaf className="w-4 h-4" />
@@ -354,7 +355,7 @@ export default function AdminDashboardPage() {
                 뉴스 카테고리별 분포
               </h3>
               <div className="space-y-2">
-                {newsCategoryData.map((stat, index) => (
+                {newsCategoryData.map((stat: any, index: number) => (
                   <div key={`news-stat-${index}`} className="flex items-center">
                     <span className="text-xs text-gray-600 dark:text-gray-400 w-24 truncate">{stat.name}</span>
                     <div className="flex-grow mx-2 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -381,7 +382,7 @@ export default function AdminDashboardPage() {
                 ESG 유형별 분포
               </h3>
               <div className="space-y-2">
-                {esgCategoryData.map((stat, index) => (
+                {esgCategoryData.map((stat: any, index: number) => (
                   <div key={`esg-stat-${index}`} className="flex items-center">
                     <span className="text-xs text-gray-600 dark:text-gray-400 w-24 truncate">{stat.category || '미분류'}</span>
                     <div className="flex-grow mx-2 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
