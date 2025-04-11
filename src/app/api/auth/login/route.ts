@@ -1,178 +1,103 @@
-import { NextRequest } from 'next/server';
-import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { User } from '@/lib/db/models';
-import { connectToDatabase } from '@/lib/db/connect';
+import { NextRequest, NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/db/mongodb';
+import { compare } from 'bcryptjs';
+import jwt, { SignOptions } from 'jsonwebtoken';
+import { User } from '@/lib/db/models/User';
 
-// 정적 생성에서 제외 (동적 라우트로 설정)
-export const dynamic = 'force-dynamic';
-
-/**
- * 로그인 API 핸들러 - 초단순화 버전
- */
 export async function POST(request: NextRequest) {
-  console.log('로그인 API 핸들러 실행');
-  
-  // 응답 헤더 설정
-  const headers = {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache',
-  };
-  
   try {
-    // 요청 처리 방식 변경: Buffer로 직접 읽기
-    const buffer = await request.arrayBuffer();
-    const textDecoder = new TextDecoder();
-    const bodyText = textDecoder.decode(buffer);
-    
-    console.log('요청 본문 읽기 완료');
-    
-    // 본문 검증
-    if (!bodyText || bodyText.trim() === '') {
-      console.log('빈 요청 본문');
-      return new Response(
-        JSON.stringify({ success: false, message: '요청 본문이 비어있습니다' }),
-        { status: 400, headers }
-      );
-    }
-    
-    // JSON 파싱
-    let body;
-    try {
-      body = JSON.parse(bodyText);
-      console.log('JSON 파싱 완료');
-    } catch (e) {
-      console.log('JSON 파싱 실패');
-      return new Response(
-        JSON.stringify({ success: false, message: '유효하지 않은 JSON 형식입니다' }),
-        { status: 400, headers }
-      );
-    }
-    
-    // 필수 필드 확인
-    const { email, password } = body;
+    const { email, password } = await request.json();
+
     if (!email || !password) {
-      console.log('필수 필드 누락');
-      return new Response(
-        JSON.stringify({ success: false, message: '이메일과 비밀번호가 필요합니다' }),
-        { status: 400, headers }
-      );
+      return NextResponse.json({ error: '이메일과 비밀번호를 입력해주세요.' }, { status: 400 });
     }
-    
-    console.log(`로그인 시도: ${email}`);
-    
+
     // 데이터베이스 연결
-    try {
-      await connectToDatabase();
-      console.log('DB 연결 성공');
-    } catch (dbError) {
-      console.error('DB 연결 실패:', dbError);
-      return new Response(
-        JSON.stringify({ success: false, message: '데이터베이스 연결 실패' }),
-        { status: 500, headers }
-      );
-    }
-    
+    await connectToDatabase();
+
     // 사용자 찾기
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email });
     if (!user) {
-      console.log('사용자 없음');
-      return new Response(
-        JSON.stringify({ success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다' }),
-        { status: 401, headers }
-      );
+      return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 });
     }
-    
+
     // 비밀번호 검증
-    console.log('비밀번호 검증 중');
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      console.log('비밀번호 불일치');
-      return new Response(
-        JSON.stringify({ success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다' }),
-        { status: 401, headers }
-      );
+    const isValid = await compare(password, user.password);
+    if (!isValid) {
+      return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 });
     }
-    
-    // JWT 시크릿
+
+    // 토큰 만료 시간 설정
+    const accessTokenExpiry = process.env.JWT_EXPIRY ?? '30d';
+    const refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRY ?? '60d';
+    console.log(`토큰 만료 설정: 액세스 토큰=${accessTokenExpiry}, 리프레시 토큰=${refreshTokenExpiry}`);
+
+    // JWT 시크릿 확인
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-      console.log('JWT_SECRET 환경변수 미설정');
-      return new Response(
-        JSON.stringify({ success: false, message: 'JWT 시크릿이 설정되지 않았습니다' }),
-        { status: 500, headers }
-      );
+      console.error('JWT_SECRET 환경 변수가 설정되지 않았습니다.');
+      return NextResponse.json({ error: '서버 구성 오류가 발생했습니다.' }, { status: 500 });
     }
-    
-    // 토큰 생성
-    console.log('토큰 생성 중');
-    const tokens = {
-      accessToken: jwt.sign(
-        { 
-          userId: user._id.toString(),
-          username: user.username || user.email.split('@')[0],
-          email: user.email,
-          role: user.role 
-        },
-        jwtSecret,
-        { expiresIn: '1d' }
-      ),
-      refreshToken: jwt.sign(
-        { 
-          userId: user._id.toString(),
-          username: user.username || user.email.split('@')[0],
-          email: user.email
-        },
-        jwtSecret,
-        { expiresIn: '7d' }
-      )
+
+    // 토큰 옵션 설정
+    const accessTokenOptions: SignOptions = {
+      expiresIn: accessTokenExpiry as unknown as SignOptions['expiresIn'],
     };
-    
-    // 마지막 로그인 시간 업데이트
-    try {
-      await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
-      console.log('마지막 로그인 시간 업데이트 완료');
-    } catch (updateError) {
-      console.log('마지막 로그인 시간 업데이트 실패 (무시됨)');
-      // 비 치명적 오류이므로 계속 진행
-    }
-    
-    // 사용자 정보 준비 (비밀번호 제외)
-    const userInfo = {
-      id: user._id.toString(),
-      username: user.username || user.email.split('@')[0],
-      email: user.email,
-      name: typeof user.name === 'object' && user.name 
-        ? `${user.name.first || ''} ${user.name.last || ''}`.trim() 
-        : (typeof user.name === 'string' ? user.name : user.email.split('@')[0]),
-      role: user.role,
-      isActive: user.isActive || false,
-      createdAt: user.createdAt || new Date(),
-      lastLogin: new Date()
+    const refreshTokenOptions: SignOptions = {
+      expiresIn: refreshTokenExpiry as unknown as SignOptions['expiresIn'],
     };
-    
-    console.log('로그인 성공');
-    
-    // 성공 응답
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: '로그인 성공',
-        user: userInfo,
-        tokens
-      }),
-      { status: 200, headers }
+
+    // 액세스 토큰 생성
+    const accessToken = jwt.sign(
+      {
+        userId: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      },
+      jwtSecret,
+      accessTokenOptions
     );
-  } catch (error: any) {
-    console.error('로그인 API 오류:', error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: error.message || '서버 오류가 발생했습니다'
-      }),
-      { status: 500, headers }
+
+    // 리프레시 토큰 생성
+    const refreshToken = jwt.sign(
+      {
+        userId: user._id,
+        username: user.username,
+        email: user.email,
+      },
+      jwtSecret,
+      refreshTokenOptions
+    );
+
+    // 마지막 로그인 시간 업데이트
+    await User.findByIdAndUpdate(user._id, {
+      lastLoginAt: new Date(),
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: '로그인 성공',
+      tokens: {
+        accessToken,
+        refreshToken
+      },
+      data: {
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          name: user.name || user.username,
+          role: user.role,
+          lastLogin: user.lastLoginAt
+        }
+      }
+    });
+  } catch (error) {
+    console.error('로그인 오류:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.' },
+      { status: 500 }
     );
   }
-} 
+}

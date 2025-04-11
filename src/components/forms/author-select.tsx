@@ -1,32 +1,60 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { UserInfo } from '@/context/auth-context';
-import apiClient from '@/lib/auth/api-client';
 import { useAuth } from '@/context/auth-context';
 
+// 사용자 역할 타입
+type UserRole = 'admin' | 'editor' | 'viewer';
+
 // API 응답에서 오는 확장된 사용자 정보 인터페이스
-interface ExtendedUserInfo extends Omit<UserInfo, 'name'> {
+interface ExtendedUserInfo {
+  id: string;
+  username: string;
+  email: string;
+  name: string | { first: string; last: string };
+  role: UserRole;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  name: string | { first: string; last: string };
 }
 
-// 표시할 이름 처리 함수
-const getDisplayName = (name: string | { first: string; last: string } | undefined): string => {
-  if (!name) return '미지정';
-  
-  if (typeof name === 'string') {
-    return name.trim() || '미지정';
+// 역할에 따른 표시 이름 변환 함수
+const getRoleDisplayName = (role: string): string => {
+  switch (role) {
+    case 'admin': return '관리자';
+    case 'editor': return '편집자';
+    case 'viewer': return '조회자';
+    default: return role;
   }
+};
+
+// 이름 객체 처리 함수
+const getDisplayName = (name: string | { first: string; last: string }): string => {
+  if (typeof name === 'object' && name !== null) {
+    return name.first || '미지정';
+  }
+  return name || '미지정';
+};
+
+// 사용자 표시 이름 생성 함수 (이름(역할) 형식)
+const createAuthorDisplayName = (user: ExtendedUserInfo): string => {
+  const name = getDisplayName(user.name);
+  const roleDisplay = getRoleDisplayName(user.role);
+  return `${name}(${roleDisplay})`;
+};
+
+// 사용자 정보 생성 함수
+const createAuthorInfo = (user: ExtendedUserInfo): string => {
+  const name = getDisplayName(user.name);
+  const roleDisplay = getRoleDisplayName(user.role);
   
-  // 객체인 경우 first와 last를 조합
-  const firstName = name.first || '';
-  const lastName = name.last || '';
-  
-  if (!firstName && !lastName) return '미지정';
-  return firstName + (lastName ? ` ${lastName}` : '');
+  // JSON 문자열로 변환하여 필요한 정보만 포함
+  return JSON.stringify({
+    name,
+    email: user.email,
+    username: user.username,
+    role: user.role
+  });
 };
 
 // 사용자 목록을 캐싱하기 위한 전역 변수
@@ -45,13 +73,31 @@ export function AuthorSelect({ value, onChange, required = false }: AuthorSelect
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<ExtendedUserInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUserInfo, setSelectedUserInfo] = useState<string>(''); // 표시용 사용자 정보
   
   // 현재 사용자를 기본값으로 설정하는 함수
   const setCurrentUserAsDefault = useCallback((userList: ExtendedUserInfo[]) => {
     if ((value === '' || value === 'current_user') && currentUser && currentUser.id) {
       const loggedInUser = userList.find((u) => u.id === currentUser.id);
       if (loggedInUser) {
-        onChange(loggedInUser.id);
+        // 현재 사용자 정보를 JSON 문자열로 변환하여 저장
+        const userInfo = createAuthorInfo(loggedInUser);
+        onChange(userInfo);
+        setSelectedUserInfo(createAuthorDisplayName(loggedInUser));
+      }
+    } else if (value && value !== 'current_user') {
+      try {
+        // value가 JSON 문자열인 경우 파싱
+        const userInfo = JSON.parse(value);
+        if (userInfo && userInfo.name && userInfo.role) {
+          setSelectedUserInfo(`${userInfo.name}(${getRoleDisplayName(userInfo.role)})`);
+        }
+      } catch (e) {
+        // JSON이 아닌 경우 ID로 취급하여 사용자 검색
+        const selectedUser = userList.find((u) => u.id === value);
+        if (selectedUser) {
+          setSelectedUserInfo(createAuthorDisplayName(selectedUser));
+        }
       }
     }
   }, [currentUser, onChange, value]);
@@ -72,7 +118,7 @@ export function AuthorSelect({ value, onChange, required = false }: AuthorSelect
       }
       
       try {
-        const response = await apiClient.get('/users') as any;
+        const response = await fetch('/api/users') as any;
         
         if (response.success) {
           // API 응답 구조 처리 (users 필드 또는 data 필드 확인)
@@ -122,9 +168,25 @@ export function AuthorSelect({ value, onChange, required = false }: AuthorSelect
     // currentUser가 변경되었을 때만 사용자 목록을 다시 불러옴
   }, [toast, currentUser, setCurrentUserAsDefault, loading]);
 
+  // 사용자 선택 처리
+  const handleValueChange = (newValue: string) => {
+    if (newValue === 'current_user') {
+      onChange('current_user');
+      setSelectedUserInfo('현재 로그인 계정');
+    } else {
+      const selectedUser = users.find(u => u.id === newValue);
+      if (selectedUser) {
+        // 사용자 정보를 JSON 문자열로 변환하여 저장
+        const userInfo = createAuthorInfo(selectedUser);
+        onChange(userInfo);
+        setSelectedUserInfo(createAuthorDisplayName(selectedUser));
+      }
+    }
+  };
+
   return (
     <div className="space-y-2">
-      <Select value={value} onValueChange={onChange}>
+      <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger>
           <SelectValue placeholder={required ? "작성자 선택 (필수)" : "작성자 선택 (선택사항)"} />
         </SelectTrigger>
@@ -141,12 +203,15 @@ export function AuthorSelect({ value, onChange, required = false }: AuthorSelect
           ) : (
             users.map((user) => (
               <SelectItem key={user.id} value={user.id}>
-                {getDisplayName(user.name)} ({user.role === 'admin' ? '관리자' : user.role === 'editor' ? '편집자' : '조회자'})
+                {createAuthorDisplayName(user)}
               </SelectItem>
             ))
           )}
         </SelectContent>
       </Select>
+      {selectedUserInfo && (
+        <p className="text-xs text-gray-500">선택된 작성자: {selectedUserInfo}</p>
+      )}
     </div>
   );
 } 

@@ -9,16 +9,14 @@ import { ko, enUS } from 'date-fns/locale';
 import { ArrowLeft, Calendar, Eye, Share2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ImageSource, MultiLingual } from '@/types/common';
 
 // 간단화된 인터페이스 정의
-interface MultiLingual {
-  ko: string;
-  en?: string;
-}
-
 interface Author {
   name: string;
-  department: string;
+  username?: string;
+  role?: string;
+  department?: string;
   _id?: string;
 }
 
@@ -30,7 +28,7 @@ interface NewsPostProps {
   category: string;
   author?: Author | string;
   publishDate: string;
-  imageSource?: string;
+  imageSource?: ImageSource;
   originalUrl?: string;
   viewCount: number;
   slug: string;
@@ -38,6 +36,9 @@ interface NewsPostProps {
   isMainFeatured?: boolean;
   createdAt: string;
   updatedAt: string;
+  thumbnailPath?: string;
+  mediumPath?: string;
+  originalPath?: string;
 }
 
 interface NewsPostDetailProps {
@@ -49,12 +50,19 @@ export default function NewsPostDetail({ post }: NewsPostDetailProps) {
   const [copied, setCopied] = useState(false);
   const [translating, setTranslating] = useState(false);
   
+  // 디버깅을 위한 콘솔 로그
+  useEffect(() => {
+    console.log('NewsPostDetail 렌더링, post 데이터:', post);
+    console.log('post?.title 구조:', post?.title);
+    console.log('post?.content 구조:', post?.content);
+  }, [post]);
+  
   // 번역된 콘텐츠를 저장할 상태
   const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
   const [translatedSummary, setTranslatedSummary] = useState<string | null>(null);
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
 
-  if (!post) return null;
+  if (!post) return <div className="p-10 text-center text-red-500">게시물을 찾을 수 없습니다.</div>;
 
   // 날짜 형식 지정
   const formattedDate = format(
@@ -167,12 +175,36 @@ export default function NewsPostDetail({ post }: NewsPostDetailProps) {
     if (!post.author) return '미지정';
     
     if (typeof post.author === 'string') {
-      return '미지정';
+      try {
+        // JSON 문자열인지 확인
+        const parsedAuthor = JSON.parse(post.author);
+        if (parsedAuthor && parsedAuthor.name) {
+          const roleName = parsedAuthor.role === 'admin' ? '관리자' : 
+                          parsedAuthor.role === 'editor' ? '편집자' : '조회자';
+          return `${parsedAuthor.name}(${roleName})`;
+        }
+      } catch (e) {
+        // JSON이 아니면 무시
+        return '미지정';
+      }
     }
     
     if (typeof post.author === 'object') {
+      // name과 role이 있는 경우 'name(role)' 형식으로 표시
+      if (post.author.name && post.author.role) {
+        const roleName = post.author.role === 'admin' ? '관리자' : 
+                        post.author.role === 'editor' ? '편집자' : '조회자';
+        return `${post.author.name}(${roleName})`;
+      }
+      
+      // name만 있는 경우
       if (post.author.name) {
         return post.author.name;
+      }
+      
+      // username만 있는 경우
+      if (post.author.username) {
+        return post.author.username;
       }
     }
     
@@ -181,12 +213,6 @@ export default function NewsPostDetail({ post }: NewsPostDetailProps) {
 
   // 작성자 부서를 가져오는 함수
   const getAuthorDepartment = (): string => {
-    if (!post.author) return '';
-    
-    if (typeof post.author === 'object' && post.author.department) {
-      return post.author.department;
-    }
-    
     return '';
   };
 
@@ -208,6 +234,38 @@ export default function NewsPostDetail({ post }: NewsPostDetailProps) {
     
     // 기존 다국어 콘텐츠
     return content[language as keyof MultiLingual] || content.ko || '';
+  };
+
+  // 이미지 URL 결정 함수
+  const getImageUrl = (): string => {
+    // 1. ImageSource 객체가 있는 경우
+    if (post.imageSource) {
+      return post.imageSource.original || 
+             post.imageSource.medium || 
+             post.imageSource.thumbnail || '';
+    }
+    
+    // 2. 개별 경로 필드가 있는 경우
+    return post.originalPath || post.mediumPath || post.thumbnailPath || '';
+  }
+
+  // 이미지 렌더링 함수
+  const renderImage = () => {
+    const imageUrl = getImageUrl();
+    
+    if (!imageUrl) return null;
+    
+    return (
+      <div className="mb-8 rounded-lg overflow-hidden">
+        <Image
+          src={imageUrl}
+          alt={getLocalizedContent(post.title, translatedTitle)}
+          width={1000}
+          height={600}
+          className="w-full h-auto"
+        />
+      </div>
+    );
   };
 
   return (
@@ -303,17 +361,7 @@ export default function NewsPostDetail({ post }: NewsPostDetailProps) {
             )}
 
             {/* 이미지 */}
-            {post.imageSource && (
-              <div className="mb-8 rounded-lg overflow-hidden">
-                <Image
-                  src={post.imageSource}
-                  alt={getLocalizedContent(post.title, translatedTitle)}
-                  width={1000}
-                  height={600}
-                  className="w-full h-auto"
-                />
-              </div>
-            )}
+            {renderImage()}
 
             {/* 본문 섹션 */}
             <div 

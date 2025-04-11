@@ -76,7 +76,12 @@ interface ESGPost {
   publishDate: string;
   createdAt: string;
   thumbnailUrl?: string;
-  imageSource?: string;
+  imageSource?: {
+    thumbnail?: string;
+    medium?: string;
+    large?: string;
+    original?: string;
+  } | string;
   viewCount: number;
   isPublished: boolean;
   isMainFeatured?: boolean;
@@ -131,6 +136,22 @@ const refreshToken = async () => {
   }
 };
 
+// 현재 로그인한 사용자 정보 가져오기
+const getCurrentUserInfo = () => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const userStr = localStorage.getItem('echoit_user');
+    if (userStr) {
+      return JSON.parse(userStr);
+    }
+  } catch (e) {
+    console.error('사용자 정보 가져오기 오류:', e);
+  }
+  
+  return null;
+};
+
 export default function AdminESGPage() {
   const [posts, setPosts] = useState<ESGPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -164,6 +185,28 @@ export default function AdminESGPage() {
       
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // 현재 로그인한 사용자 정보가 없으면 가져오기
+      const userInfo = getCurrentUserInfo();
+      if (!userInfo && token) {
+        try {
+          const userResponse = await fetch('/api/auth/me', {
+            method: 'GET',
+            headers
+          });
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.success && userData.user) {
+              // 사용자 정보를 로컬 스토리지에 저장
+              localStorage.setItem('echoit_user', JSON.stringify(userData.user));
+              console.log('사용자 정보를 로컬 스토리지에 저장했습니다.');
+            }
+          }
+        } catch (error) {
+          console.error('사용자 정보 가져오기 오류:', error);
+        }
       }
       
       // 모든 ESG 포스트 가져오기 (발행 및 미발행 포함)
@@ -457,32 +500,98 @@ export default function AdminESGPage() {
   const getAuthorName = (author: any): string => {
     if (!author) return '미지정';
     
-    if (typeof author === 'string') {
-      // author가 문자열(ID)인 경우 해당 사용자 정보를 가져와야 함
-      return '미지정';
+    // "current_user"인 경우 현재 사용자 정보 반환
+    if (author === 'current_user') {
+      const currentUser = getCurrentUserInfo();
+      if (currentUser) {
+        if (currentUser.name && typeof currentUser.name === 'object') {
+          const firstName = currentUser.name.first || '';
+          const lastName = currentUser.name.last || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          return fullName || currentUser.username || '현재 사용자';
+        }
+        if (currentUser.name) {
+          return currentUser.name;
+        }
+        return currentUser.username || '현재 사용자';
+      }
+      return '현재 사용자';
     }
     
-    if (typeof author === 'object') {
+    // 문자열 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'string') {
+      try {
+        // JSON 문자열인지 확인
+        const parsedAuthor = JSON.parse(author);
+        if (parsedAuthor) {
+          if (parsedAuthor.name) {
+            return parsedAuthor.name;
+          }
+          // 이름이 없고 사용자명이 있는 경우
+          if (parsedAuthor.username) return parsedAuthor.username;
+        }
+      } catch (e) {
+        // JSON이 아닌 경우는 그대로 반환
+        return author;
+      }
+    }
+    
+    // 객체 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'object' && author !== null) {
+      // name이 있는 경우
       if (author.name) {
         return author.name;
       }
-      if (author._id) {
-        // author가 ID만 있는 객체인 경우
-        return '미지정';
+      
+      // username만 있는 경우
+      if (author.username) {
+        return author.username;
       }
     }
     
     return '미지정';
   };
 
-  // 작성자 부서 표시 처리
-  const getAuthorDepartment = (author: any): string => {
+  // 작성자 역할 표시 처리
+  const getAuthorRole = (author: any): string => {
     if (!author) return '';
     
-    if (typeof author === 'object' && author.department) {
-      return author.department;
+    // "current_user"인 경우 현재 사용자 정보 반환
+    if (author === 'current_user') {
+      const currentUser = getCurrentUserInfo();
+      if (currentUser && currentUser.role) {
+        return currentUser.role === 'admin' ? '관리자' : 
+               currentUser.role === 'editor' ? '편집자' : '조회자';
+      }
+      return '';
     }
     
+    // 문자열 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'string') {
+      try {
+        // JSON 문자열인지 확인
+        const parsedAuthor = JSON.parse(author);
+        if (parsedAuthor && parsedAuthor.role) {
+          return parsedAuthor.role === 'admin' ? '관리자' : 
+                 parsedAuthor.role === 'editor' ? '편집자' : '조회자';
+        }
+      } catch (e) {
+        // JSON이 아닌 경우 빈 문자열 반환
+        return '';
+      }
+    }
+    
+    // 객체 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'object' && author !== null && author.role) {
+      return author.role === 'admin' ? '관리자' : 
+             author.role === 'editor' ? '편집자' : '조회자';
+    }
+    
+    return '';
+  };
+
+  // 작성자 부서 표시 처리 - 더 이상 사용하지 않음
+  const getAuthorDepartment = (author: any): string => {
     return '';
   };
 
@@ -491,11 +600,8 @@ export default function AdminESGPage() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">ESG 콘텐츠 관리</h1>
-          <Link href="/admin/esg/new">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              새 ESG 콘텐츠
-            </Button>
+          <Link href="/admin/esg/create" className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+            ESG 콘텐츠 생성
           </Link>
         </div>
 
@@ -504,32 +610,32 @@ export default function AdminESGPage() {
             <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto max-w-[calc(100vw-2rem)]">
+            <table className="w-full divide-y divide-gray-200 table-fixed">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-16 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     대표이미지
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-[40%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     제목
                   </th>
-                  <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     날짜
                   </th>
-                  <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     카테고리
                   </th>
-                  <th scope="col" className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     작성자
                   </th>
-                  <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     발행 상태
                   </th>
-                  <th scope="col" className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     주요 뉴스
                   </th>
-                  <th scope="col" className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-16 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     작업
                   </th>
                 </tr>
@@ -537,15 +643,18 @@ export default function AdminESGPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {posts.map((post) => (
                   <tr key={post._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center justify-center h-16 w-16 overflow-hidden rounded-md">
-                        {post.thumbnailUrl ? (
-                          <Image
-                            src={post.thumbnailUrl}
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <div className="flex items-center justify-center h-12 w-12 overflow-hidden rounded-md">
+                        {(post.thumbnailUrl || (post.imageSource && typeof post.imageSource === 'object' && post.imageSource.thumbnail)) ? (
+                          <FallbackImage
+                            src={typeof post.imageSource === 'object' && post.imageSource.thumbnail 
+                                ? post.imageSource.thumbnail 
+                                : post.thumbnailUrl || '/images/placeholder-esg.jpg'}
                             alt={post.title.ko}
-                            width={64}
-                            height={64}
+                            width={48}
+                            height={48}
                             className="h-full w-full object-cover"
+                            fallbackSrc="/images/placeholder-esg.jpg"
                           />
                         ) : (
                           <div className="flex items-center justify-center h-full w-full bg-gray-200 text-gray-400">
@@ -554,26 +663,28 @@ export default function AdminESGPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 line-clamp-1">
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 truncate">
                         <Link href={`/admin/esg/edit/${post._id}`} className="hover:text-indigo-600">
                           {post.title.ko}
                         </Link>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                       {format(new Date(post.publishDate || post.createdAt), 'yyyy.MM.dd', { locale: ko })}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <Badge className={categoryColors[post.category] || "bg-gray-100 text-gray-800"}>
                         {categoryLabels[post.category] || post.category}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{getAuthorName(post.author)}</div>
-                      <div className="text-xs text-gray-500">{getAuthorDepartment(post.author)}</div>
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium text-gray-900">{getAuthorName(post.author)}</div>
+                        <div className="text-xs text-gray-500">{getAuthorRole(post.author)}</div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
                         <Switch
                           checked={post.isPublished}
@@ -584,7 +695,7 @@ export default function AdminESGPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
                         <Switch
                           checked={post.isMainFeatured || false}
@@ -595,7 +706,7 @@ export default function AdminESGPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-3 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex space-x-2">
                         <Link href={`/admin/esg/edit/${post._id}`}>
                           <Button variant="outline" size="sm" className="px-2 py-1">

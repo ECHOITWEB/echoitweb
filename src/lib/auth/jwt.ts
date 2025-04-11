@@ -10,8 +10,11 @@ if (!JWT_SECRET || JWT_SECRET === 'echoit-secret-key-change-in-production') {
   console.warn('⚠️ JWT_SECRET이 기본값으로 설정되어 있습니다. 프로덕션 환경에서는 반드시 변경하세요!');
 }
 
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '12h';
-const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
+// 토큰 만료 시간을 연장 - 액세스 토큰은 30일, 리프레시 토큰은 60일
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
+const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '60d';
+
+console.log('토큰 만료 설정:', JWT_EXPIRY, JWT_REFRESH_EXPIRY);
 
 // 사용자 인증 정보 인터페이스
 export interface UserAuthInfo {
@@ -237,4 +240,67 @@ export function extractUserAuthInfo(user: IUser): UserAuthInfo {
     role: role,
     roles: Array.isArray(user.roles) ? user.roles : [role]
   };
+}
+
+interface TokenValidationResult {
+  valid: boolean;
+  userId?: string;
+  username?: string;
+  role?: string;
+  error?: string;
+}
+
+export function validateToken(token: string): TokenValidationResult {
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET이 설정되지 않았습니다.');
+    }
+
+    const decoded = jwt.verify(token, secret) as jwt.JwtPayload;
+    
+    if (!decoded || typeof decoded !== 'object') {
+      return { valid: false, error: '유효하지 않은 토큰입니다.' };
+    }
+
+    return {
+      valid: true,
+      userId: decoded.userId,
+      username: decoded.username,
+      role: decoded.role
+    };
+  } catch (error) {
+    console.error('토큰 검증 오류:', error);
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : '토큰 검증 중 오류가 발생했습니다.'
+    };
+  }
+}
+
+export async function refreshToken(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/auth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('echoit_auth_token')}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('토큰 갱신 실패');
+    }
+
+    const data = await response.json();
+    if (!data.token) {
+      throw new Error('새 토큰이 없습니다.');
+    }
+
+    localStorage.setItem('echoit_auth_token', data.token);
+    return data.token;
+  } catch (error) {
+    console.error('토큰 갱신 오류:', error);
+    return null;
+  }
 }

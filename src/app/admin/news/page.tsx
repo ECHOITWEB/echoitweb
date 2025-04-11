@@ -65,9 +65,14 @@ interface NewsPost {
   author: {
     department: string;
     name: string;
-  };
+  } | string | any; // 작성자가 다양한 형태로 저장될 수 있음
   publishDate: string;
-  imageSource?: string;
+  imageSource?: string | {
+    thumbnail?: string;
+    medium?: string;
+    large?: string;
+    original?: string;
+  };
   isPublished: boolean;
   isMainFeatured?: boolean;
   viewCount: number;
@@ -123,6 +128,22 @@ const refreshToken = async () => {
   }
 };
 
+// 현재 로그인한 사용자 정보 가져오기
+const getCurrentUserInfo = () => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const userStr = localStorage.getItem('echoit_user');
+    if (userStr) {
+      return JSON.parse(userStr);
+    }
+  } catch (e) {
+    console.error('사용자 정보 가져오기 오류:', e);
+  }
+  
+  return null;
+};
+
 export default function AdminNewsPage() {
   const [posts, setPosts] = useState<NewsPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -161,7 +182,7 @@ export default function AdminNewsPage() {
       // 모든 뉴스 가져오기 (발행 및 미발행 포함)
       try {
         console.log('모든 뉴스 데이터 요청 중...');
-        const response = await fetch('/api/posts/news?withCounts=true', {
+        const response = await fetch('/api/posts/news?withCounts=true&admin=true&limit=100', {
           method: 'GET',
           headers,
           cache: 'no-store',
@@ -179,7 +200,7 @@ export default function AdminNewsPage() {
             headers['Authorization'] = `Bearer ${newToken}`;
             
             // 두 번째 시도
-            const retryResponse = await fetch('/api/posts/news?withCounts=true', {
+            const retryResponse = await fetch('/api/posts/news?withCounts=true&admin=true', {
               method: 'GET',
               headers,
               cache: 'no-store',
@@ -563,32 +584,98 @@ export default function AdminNewsPage() {
   const getAuthorName = (author: any): string => {
     if (!author) return '미지정';
     
-    if (typeof author === 'string') {
-      // author가 문자열(ID)인 경우 해당 사용자 정보를 가져와야 함
-      return '미지정';
+    // "current_user"인 경우 현재 사용자 정보 반환
+    if (author === 'current_user') {
+      const currentUser = getCurrentUserInfo();
+      if (currentUser) {
+        if (currentUser.name && typeof currentUser.name === 'object') {
+          const firstName = currentUser.name.first || '';
+          const lastName = currentUser.name.last || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          return fullName || currentUser.username || '현재 사용자';
+        }
+        if (currentUser.name) {
+          return currentUser.name;
+        }
+        return currentUser.username || '현재 사용자';
+      }
+      return '현재 사용자';
     }
     
-    if (typeof author === 'object') {
+    // 문자열 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'string') {
+      try {
+        // JSON 문자열인지 확인
+        const parsedAuthor = JSON.parse(author);
+        if (parsedAuthor) {
+          if (parsedAuthor.name) {
+            return parsedAuthor.name;
+          }
+          // 이름이 없고 사용자명이 있는 경우
+          if (parsedAuthor.username) return parsedAuthor.username;
+        }
+      } catch (e) {
+        // JSON이 아닌 경우는 그대로 반환
+        return author;
+      }
+    }
+    
+    // 객체 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'object' && author !== null) {
+      // name이 있는 경우
       if (author.name) {
         return author.name;
       }
-      if (author._id) {
-        // author가 ID만 있는 객체인 경우
-        return '미지정';
+      
+      // username만 있는 경우
+      if (author.username) {
+        return author.username;
       }
     }
     
     return '미지정';
   };
 
-  // 작성자 부서 표시 처리
-  const getAuthorDepartment = (author: any): string => {
+  // 작성자 역할 표시 처리
+  const getAuthorRole = (author: any): string => {
     if (!author) return '';
     
-    if (typeof author === 'object' && author.department) {
-      return author.department;
+    // "current_user"인 경우 현재 사용자 정보 반환
+    if (author === 'current_user') {
+      const currentUser = getCurrentUserInfo();
+      if (currentUser && currentUser.role) {
+        return currentUser.role === 'admin' ? '관리자' : 
+               currentUser.role === 'editor' ? '편집자' : '조회자';
+      }
+      return '';
     }
     
+    // 문자열 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'string') {
+      try {
+        // JSON 문자열인지 확인
+        const parsedAuthor = JSON.parse(author);
+        if (parsedAuthor && parsedAuthor.role) {
+          return parsedAuthor.role === 'admin' ? '관리자' : 
+                 parsedAuthor.role === 'editor' ? '편집자' : '조회자';
+        }
+      } catch (e) {
+        // JSON이 아닌 경우 빈 문자열 반환
+        return '';
+      }
+    }
+    
+    // 객체 형태로 저장된 작성자 정보 처리
+    if (typeof author === 'object' && author !== null && author.role) {
+      return author.role === 'admin' ? '관리자' : 
+             author.role === 'editor' ? '편집자' : '조회자';
+    }
+    
+    return '';
+  };
+
+  // 작성자 부서 표시 처리 (더 이상 사용하지 않으므로 빈 문자열 반환)
+  const getAuthorDepartment = (author: any): string => {
     return '';
   };
 
@@ -626,32 +713,32 @@ export default function AdminNewsPage() {
             <p className="text-gray-500">뉴스 데이터를 불러오는 중입니다...</p>
           </div>
         ) : posts.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto max-w-[calc(100vw-2rem)]">
+            <table className="w-full divide-y divide-gray-200 table-fixed">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-16 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     대표이미지
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-[40%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     제목
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     날짜
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-20 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     카테고리
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     작성자
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     발행 상태
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-24 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     주요 뉴스
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="w-16 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     작업
                   </th>
                 </tr>
@@ -659,10 +746,12 @@ export default function AdminNewsPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {posts.map((post) => (
                   <tr key={post._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="relative h-16 w-16 overflow-hidden rounded">
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <div className="relative h-12 w-12 overflow-hidden rounded">
                         <FallbackImage
-                          src={post.imageSource || '/images/news_default.png'}
+                          src={(post.imageSource && typeof post.imageSource === 'object' && post.imageSource.thumbnail) 
+                               ? post.imageSource.thumbnail 
+                               : (typeof post.imageSource === 'string' ? post.imageSource : '/images/news_default.png')}
                           alt={post.title.ko}
                           fill
                           sizes="64px"
@@ -671,29 +760,31 @@ export default function AdminNewsPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{post.title.ko}</div>
-                      <div className="text-xs text-blue-600 truncate max-w-xs mt-1">
+                    <td className="px-3 py-4">
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {typeof post.title === 'object' ? post.title.ko : post.title}
+                      </div>
+                      <div className="text-xs text-blue-600 truncate mt-1">
                         <a href={`/notice/news/${post.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
                           {`/notice/news/${post.slug}`}
                         </a>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                       {post.publishDate ? format(new Date(post.publishDate), 'yyyy년 MM월 dd일', { locale: ko }) : '날짜 없음'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <Badge className={categoryColors[post.category] || 'bg-gray-100 text-gray-800'}>
                         {categoryLabels[post.category] || post.category}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm">
                       <div className="flex flex-col">
                         <span className="font-medium">{getAuthorName(post.author)}</span>
-                        <span className="text-xs text-gray-500">{getAuthorDepartment(post.author)}</span>
+                        <span className="text-xs text-gray-500">{getAuthorRole(post.author)}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center space-x-2">
                         <Switch
                           checked={post.isPublished}
@@ -714,7 +805,7 @@ export default function AdminNewsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center space-x-2">
                         <Switch
                           checked={post.isMainFeatured || false}
@@ -735,7 +826,7 @@ export default function AdminNewsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <Link
                           href={`/admin/news/edit/${post._id}`}
@@ -787,3 +878,4 @@ export default function AdminNewsPage() {
     </div>
   );
 }
+

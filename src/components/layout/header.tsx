@@ -87,7 +87,7 @@ export function Header({ transparent = false, className }: HeaderProps) {
             alt="에코아이티 로고"
             width={120}
             height={32}
-            className="h-8 w-auto"
+            className="h-8 w-auto object-contain"
             priority
           />
         </Link>
@@ -147,7 +147,7 @@ export function Header({ transparent = false, className }: HeaderProps) {
                   alt="에코아이티 로고"
                   width={120}
                   height={32}
-                  className="h-8 w-auto"
+                  className="h-8 w-auto object-contain"
                 />
               </Link>
               <button

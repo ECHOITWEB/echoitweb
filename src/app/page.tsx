@@ -1,3 +1,5 @@
+// app 폴더 바로 밑에 있는 page.tsx는 바로 브라우저의 최상위 주소인 '/'가 됩니다.
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { HeroSection } from '@/components/home/hero-section';

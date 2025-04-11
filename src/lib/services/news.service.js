@@ -31,16 +31,30 @@ const createSlug = async (title) => {
   
   console.log('슬러그 생성 시작:', titleText);
   
-  // 한글을 로마자로 변환 (간단한 구현)
-  const romanized = titleText
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+  // 특수문자 및 공백 처리
+  let slug = titleText
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/[^\w\s가-힣]/g, '') // 특수문자 제거
+    .trim()
+    .replace(/\s+/g, '-') // 공백을 하이픈으로 변경
+    .replace(/[-]+/g, '-'); // 연속된 하이픈 정리
+
+  // 짧은 슬러그인 경우 타임스탬프 추가
+  if (slug.length < 3) {
+    slug = `${slug}-${Date.now()}`;
+  }
   
-  // 영어가 아닌 문자 처리 (한글 등)
-  const slug = romanized.length > 0 ? romanized : `news-${Date.now()}`;
+  // 한글 포함 여부 확인 (한글 포함 시 타임스탬프 추가)
+  if (/[\u3131-\u318F\uAC00-\uD7A3]/g.test(slug)) {
+    slug = `${slug}-${Date.now()}`;
+  }
+  
+  // AI 같은 짧은 키워드인 경우 타임스탬프 추가
+  const shortKeywords = ['ai', 'iot', 'vr', 'ar', 'api', 'app', 'web', 'cloud', '5g', 'ml'];
+  if (shortKeywords.includes(slug)) {
+    slug = `${slug}-${Date.now()}`;
+  }
+  
   console.log('생성된 슬러그:', slug);
   
   return slug;
@@ -100,10 +114,17 @@ class NewsService {
    */
   async createNews(newsData, userId) {
     try {
-      // 슬러그 생성
+      // 슬러그 생성 (titleForSlug가 있으면 우선 사용)
       let slug;
       try {
-        slug = await createSlug(newsData.title.ko || newsData.title);
+        const titleSource = newsData.titleForSlug || newsData.title;
+        slug = await createSlug(titleSource);
+        
+        // 중복 방지를 위한 추가 처리
+        if (slug.length < 5 || /^[a-z]{1,4}$/.test(slug)) {
+          // 슬러그가 너무 짧거나 a-z로만 구성된 1-4글자인 경우
+          slug = `${slug}-${Date.now()}`;
+        }
       } catch (error) {
         console.error('슬러그 생성 중 오류:', error);
         // 기본 슬러그 생성 (fallback)
@@ -115,6 +136,11 @@ class NewsService {
         slug,
         createdBy: userId
       };
+
+      // titleForSlug는 DB에 저장할 필요 없으므로 제거
+      if (newsWithMeta.titleForSlug) {
+        delete newsWithMeta.titleForSlug;
+      }
 
       return await newsDBManager.createNews(newsWithMeta);
     } catch (error) {

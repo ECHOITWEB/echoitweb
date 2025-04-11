@@ -2,35 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { TinyEditor } from '@/components/editor/tiny-editor';
-import FileUpload from '@/components/ui/file-upload';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { AuthorSelect } from '@/components/forms/author-select';
-import { AlertCircle, Check, Loader2, ArrowLeft } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import dynamic from 'next/dynamic';
-import { Checkbox } from '@/components/ui/checkbox';
-import { DatePicker } from '@/components/ui/date-picker';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-// Tagify 컴포넌트 동적 임포트
-const TagifyComponent = dynamic(() => 
-  import('@yaireo/tagify/dist/react.tagify').then((mod) => mod.default), 
-  { ssr: false }
-);
-
-// CSS 클라이언트 사이드에서만 로드
-const TagifyCss = (): null => {
-  useEffect(() => {
-    import('@yaireo/tagify/dist/tagify.css');
-  }, []);
-  return null;
-};
+import { useToast } from '@/hooks/use-toast';
+import { ContentForm, ContentFormData, FormError, TagifyEvent } from '@/components/admin/ContentForm';
+import { Loader2 } from 'lucide-react';
+import { ImageSource } from '@/types/common';
 
 // 뉴스 카테고리 목록
-const CATEGORIES = [
+const NEWS_CATEGORIES = [
   { value: 'tech', label: '기술' },
   { value: 'industry', label: '산업' },
   { value: 'company', label: '기업' },
@@ -38,53 +17,7 @@ const CATEGORIES = [
   { value: 'policy', label: '정책' },
   { value: 'event', label: '이벤트' },
   { value: 'other', label: '기타' }
-] as const;
-
-type CategoryType = typeof CATEGORIES[number]['value'];
-
-// 부서 목록
-const DEPARTMENTS = [
-  { value: 'tech_team', label: '기술팀' },
-  { value: 'management', label: '경영진' },
-  { value: 'marketing', label: '마케팅' },
-  { value: 'sales', label: '영업' },
-  { value: 'hr', label: '인사' },
-  { value: 'operation', label: '운영' },
-  { value: 'other', label: '기타' }
-] as const;
-
-type DepartmentType = typeof DEPARTMENTS[number]['value'];
-
-interface NewsFormData {
-  title: string;
-  summary: string;
-  content: string;
-  category: CategoryType;
-  author: string;
-  publishDate: Date;
-  imageSource: string;
-  authorDepartment: DepartmentType;
-  tags: string[];
-  originalUrl: string;
-  isPublished: boolean;
-  isMainFeatured: boolean;
-}
-
-interface FormError {
-  field: string;
-  message: string;
-}
-
-interface TagifyEvent {
-  detail: {
-    tagify: {
-      value: Array<{
-        value: string;
-        [key: string]: unknown;
-      }>;
-    };
-  };
-}
+];
 
 // API 응답 타입
 interface NewsPost {
@@ -108,7 +41,7 @@ interface NewsPost {
     name?: string;
   };
   publishDate?: string;
-  imageSource?: string;
+  imageSource?: ImageSource;
   isPublished?: boolean;
   isMainFeatured?: boolean;
   tags?: string[];
@@ -129,38 +62,16 @@ function getToken(): string | null {
     const sessionStr = localStorage.getItem('echoit_auth_token');
     if (sessionStr) {
       const session = JSON.parse(sessionStr);
-      return session.accessToken || null;
-    }
-  } catch (e) {
-    console.error('세션 파싱 오류:', e);
-  }
-  
-  return null;
-}
-
-// 토큰 갱신 함수
-const refreshToken = async () => {
-  try {
-    const response = await fetch('/api/auth/token', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.accessToken) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('echoit_auth_token', JSON.stringify(data));
-        }
-        return data.accessToken;
+      if (session?.accessToken) {
+        return session.accessToken;
       }
     }
     return null;
-  } catch (error) {
-    console.error('토큰 갱신 중 오류:', error);
+  } catch (e) {
+    console.error('토큰 처리 중 오류:', e);
     return null;
   }
-};
+}
 
 // 로딩 컴포넌트
 function LoadingSpinner(): JSX.Element {
@@ -172,315 +83,39 @@ function LoadingSpinner(): JSX.Element {
   );
 }
 
-// AuthorSelect 컴포넌트 props 타입 정의
-interface AuthorSelectProps {
-  value: string;
-  onChange: (value: string) => void;
-}
-
-// TinyEditor 컴포넌트 props 타입 정의
-interface TinyEditorProps {
-  value: string;
-  onChange: (content: string) => void;
-}
-
-// 폼 컴포넌트
-function NewsEditForm({
-  formData,
-  setFormData,
-  handleSubmit,
-  isSubmitting,
-  errors,
-  selectedAuthor,
-  handleAuthorChange,
-  handleTagChange,
-  handleBackClick
-}: {
-  formData: NewsFormData;
-  setFormData: React.Dispatch<React.SetStateAction<NewsFormData>>;
-  handleSubmit: (e: React.FormEvent) => Promise<void>;
-  isSubmitting: boolean;
-  errors: FormError[];
-  selectedAuthor: string;
-  handleAuthorChange: (authorId: string) => void;
-  handleTagChange: (e: TagifyEvent) => void;
-  handleBackClick: () => void;
-}): JSX.Element {
-  // Tagify 설정
-  const tagifySettings = {
-    maxTags: 10,
-    placeholder: "예: AI, 블록체인, 핀테크",
-    delimiters: ",",
-    dropdown: {
-      enabled: 0
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-6xl mx-auto p-6 bg-white rounded-lg shadow">
-      <TagifyCss />
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center">
-          <Button
-            type="button"
-            variant="ghost"
-            className="mr-2"
-            onClick={handleBackClick}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            뒤로
-          </Button>
-          <h1 className="text-2xl font-bold">뉴스 콘텐츠 수정</h1>
-        </div>
-        <div className="flex space-x-2">
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                저장 중...
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4 mr-2" />
-                저장하기
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {errors.length > 0 && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>오류</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc list-inside">
-              {errors.map((error, index) => (
-                <li key={index}>{error.message}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            제목
-          </label>
-          <Input
-            type="text"
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            placeholder="뉴스 제목을 입력하세요"
-            className="w-full"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            요약
-          </label>
-          <Input
-            type="text"
-            value={formData.summary}
-            onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-            placeholder="뉴스 요약을 입력하세요"
-            className="w-full"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            카테고리
-          </label>
-          <Select
-            value={formData.category}
-            onValueChange={(value: CategoryType) => setFormData({ ...formData, category: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="카테고리를 선택하세요" />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map((category) => (
-                <SelectItem key={category.value} value={category.value}>
-                  {category.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            작성자
-          </label>
-          <AuthorSelect
-            value={selectedAuthor}
-            onChange={handleAuthorChange}
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            발행일
-          </label>
-          <DatePicker
-            date={formData.publishDate || new Date()}
-            setDate={(date) => setFormData({ ...formData, publishDate: date || new Date() })}
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            태그
-          </label>
-          <TagifyComponent
-            settings={tagifySettings}
-            value={formData.tags}
-            onChange={handleTagChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            이미지 URL
-          </label>
-          <Input
-            type="text"
-            value={formData.imageSource}
-            onChange={(e) => setFormData({ ...formData, imageSource: e.target.value })}
-            placeholder="이미지 URL을 입력하세요"
-            className="w-full"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            원본 URL
-          </label>
-          <Input
-            type="text"
-            value={formData.originalUrl}
-            onChange={(e) => setFormData({ ...formData, originalUrl: e.target.value })}
-            placeholder="원본 URL을 입력하세요"
-            className="w-full"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            본문
-          </label>
-          <TinyEditor
-            value={formData.content}
-            onChange={(content: string) => setFormData({ ...formData, content })}
-          />
-        </div>
-
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="isPublished"
-              checked={formData.isPublished}
-              onCheckedChange={(checked) => 
-                setFormData({ ...formData, isPublished: checked as boolean })
-              }
-            />
-            <label
-              htmlFor="isPublished"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              발행하기
-            </label>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="isMainFeatured"
-              checked={formData.isMainFeatured}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, isMainFeatured: checked as boolean })
-              }
-            />
-            <label
-              htmlFor="isMainFeatured"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              메인 노출
-            </label>
-          </div>
-        </div>
-      </div>
-    </form>
-  );
-}
-
-/**
- * 작성자 이름을 가져오는 함수
- */
-function getAuthorName(author: any): string {
-  if (!author) return '미지정';
-  
-  if (typeof author === 'string') {
-    return author;
-  }
-  
-  if (typeof author === 'object') {
-    if (author.name) return author.name;
-    if (author._id) return author._id;
-  }
-  
-  return '미지정';
-}
-
-/**
- * 작성자 부서를 가져오는 함수
- */
-function getAuthorDepartment(author: any): DepartmentType {
-  if (!author) return 'other';
-  
-  if (typeof author === 'object' && author.department) {
-    // 부서명이 DepartmentType에 있는지 확인
-    const dept = author.department as string;
-    const isValidDept = DEPARTMENTS.some(d => d.value === dept);
-    return isValidDept ? (dept as DepartmentType) : 'other';
-  }
-  
-  return 'other';
-}
-
 export default function EditNewsPage(): JSX.Element {
   const router = useRouter();
   const params = useParams();
-  const newsId = params.id as string;
   const { toast } = useToast();
+  const newsId = params.id as string;
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormError[]>([]);
-  const [showSuccess, setShowSuccess] = useState<boolean>(false);
   const [selectedAuthor, setSelectedAuthor] = useState<string>('current_user');
-  const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const [formData, setFormData] = useState<NewsFormData>({
+  // 폼 데이터 초기 상태
+  const [formData, setFormData] = useState<ContentFormData>({
     title: '',
     summary: '',
     content: '',
     category: 'tech',
     author: 'current_user',
     publishDate: new Date(),
-    imageSource: '',
-    authorDepartment: 'tech_team',
+    imageSource: {
+      thumbnail: '',
+      medium: '',
+      large: '',
+      original: ''
+    },
     tags: [],
     originalUrl: '',
     isPublished: true,
-    isMainFeatured: false
+    isMainFeatured: false,
+    thumbnailPath: '',
+    mediumPath: '',
+    largePath: '',
+    originalPath: ''
   });
 
   // 데이터 로드
@@ -490,18 +125,22 @@ export default function EditNewsPage(): JSX.Element {
       
       setIsLoading(true);
       try {
-        // 기본 헤더
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-        
-        // localStorage에서 토큰 가져오기 (있는 경우에만)
         const token = getToken();
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+        if (!token) {
+          toast({
+            title: "인증 오류",
+            description: "로그인이 필요합니다.",
+            variant: "destructive"
+          });
+          router.push('/admin/login');
+          return;
         }
 
-        const response = await fetch(`/api/posts/news/${newsId}`, { headers });
+        const response = await fetch(`/api/posts/news/${newsId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         
         if (!response.ok) {
           throw new Error('뉴스 데이터를 불러오는데 실패했습니다.');
@@ -527,29 +166,47 @@ export default function EditNewsPage(): JSX.Element {
         }
         setSelectedAuthor(authorId);
         
-        // 부서 정보 확인
-        const authorDepartment = getAuthorDepartment(post.author);
+        // 이미지 소스 처리
+        let imageSourceObj: ImageSource = {
+          thumbnail: '',
+          medium: '',
+          large: '',
+          original: ''
+        };
+        
+        if (post.imageSource) {
+          if (typeof post.imageSource === 'string') {
+            imageSourceObj = {
+              thumbnail: post.imageSource,
+              medium: post.imageSource,
+              large: post.imageSource,
+              original: post.imageSource
+            };
+          } else {
+            imageSourceObj = post.imageSource;
+          }
+        }
         
         // 폼 데이터 설정
         setFormData({
           title: post.title?.ko || '',
           summary: post.summary?.ko || '',
           content: post.content?.ko || '',
-          category: (post.category as CategoryType) || 'tech',
+          category: post.category || 'tech',
           author: authorId,
           publishDate: post.publishDate ? new Date(post.publishDate) : new Date(),
-          imageSource: post.imageSource || '',
-          authorDepartment: authorDepartment,
+          imageSource: imageSourceObj,
           tags: post.tags || [],
           originalUrl: post.originalUrl || '',
           isPublished: post.isPublished || false,
-          isMainFeatured: post.isMainFeatured || false
+          isMainFeatured: post.isMainFeatured || false,
+          thumbnailPath: typeof imageSourceObj === 'object' ? imageSourceObj.thumbnail : '',
+          mediumPath: typeof imageSourceObj === 'object' ? imageSourceObj.medium : '',
+          largePath: typeof imageSourceObj === 'object' ? imageSourceObj.large : '',
+          originalPath: typeof imageSourceObj === 'object' ? imageSourceObj.original : ''
         });
-        
-        setErrorMessage('');
       } catch (error) {
         console.error('뉴스 로딩 오류:', error);
-        setErrorMessage('뉴스 데이터를 불러오는데 실패했습니다.');
         toast({
           title: "데이터 로딩 실패",
           description: "뉴스 데이터를 불러오는데 실패했습니다.",
@@ -561,7 +218,7 @@ export default function EditNewsPage(): JSX.Element {
     }
     
     loadNewsData();
-  }, [newsId, toast]);
+  }, [newsId, router, toast]);
 
   const validateForm = (): boolean => {
     const newErrors: FormError[] = [];
@@ -572,7 +229,12 @@ export default function EditNewsPage(): JSX.Element {
     if (!formData.content) {
       newErrors.push({ field: 'content', message: '내용을 입력해주세요.' });
     }
-    if (!formData.imageSource) {
+    
+    // 이미지 경로 검사
+    const hasImage = formData.thumbnailPath || formData.originalPath || 
+                     formData.imageSource?.thumbnail || formData.imageSource?.original;
+    
+    if (!hasImage) {
       newErrors.push({ field: 'image', message: '대표 이미지를 업로드해주세요.' });
     }
     
@@ -589,7 +251,16 @@ export default function EditNewsPage(): JSX.Element {
     
     try {
       setIsSubmitting(true);
-      setErrors([]);
+      
+      if (!validateForm()) {
+        setIsSubmitting(false);
+        toast({
+          title: "입력 오류",
+          description: "필수 정보를 모두 입력해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // 토큰 가져오기
       const token = getToken();
@@ -599,19 +270,25 @@ export default function EditNewsPage(): JSX.Element {
           description: "로그인이 필요합니다.",
           variant: "destructive",
         });
+        router.push('/admin/login');
         return;
       }
 
-      // API 요청 헤더 설정
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+      // 이미지 소스 구성
+      const imageSource = {
+        thumbnail: formData.thumbnailPath || formData.imageSource.thumbnail || '',
+        medium: formData.mediumPath || formData.imageSource.medium || '',
+        large: formData.largePath || formData.imageSource.large || '',
+        original: formData.originalPath || formData.imageSource.original || ''
       };
 
       // API 요청
       const response = await fetch(`/api/posts/news/${params.id}`, {
         method: 'PUT',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           title: { ko: formData.title },
           summary: { ko: formData.summary },
@@ -619,74 +296,33 @@ export default function EditNewsPage(): JSX.Element {
           category: formData.category,
           author: formData.author,
           publishDate: formData.publishDate,
-          imageSource: formData.imageSource,
+          imageSource,
           tags: formData.tags,
-          originalUrl: formData.originalUrl,
           isPublished: formData.isPublished,
-          isMainFeatured: formData.isMainFeatured
+          isMainFeatured: formData.isMainFeatured,
+          originalUrl: formData.originalUrl
         })
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        if (response.status === 401) {
-          // 토큰 갱신 시도
-          const newToken = await refreshToken();
-          if (newToken) {
-            // 새 토큰으로 재시도
-            const retryResponse = await fetch(`/api/posts/news/${params.id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${newToken}`
-              },
-              body: JSON.stringify({
-                title: { ko: formData.title },
-                summary: { ko: formData.summary },
-                content: { ko: formData.content },
-                category: formData.category,
-                author: formData.author,
-                publishDate: formData.publishDate,
-                imageSource: formData.imageSource,
-                tags: formData.tags,
-                originalUrl: formData.originalUrl,
-                isPublished: formData.isPublished,
-                isMainFeatured: formData.isMainFeatured
-              })
-            });
-
-            if (retryResponse.ok) {
-              toast({
-                title: "성공",
-                description: "뉴스가 성공적으로 수정되었습니다.",
-              });
-              router.push('/admin/news');
-              return;
-            }
-          }
-        }
-
-        // 에러 처리
-        const message = errorData.message || '저장 중 오류가 발생했습니다.';
-        toast({
-          title: "오류",
-          description: message,
-          variant: "destructive",
-        });
-        return;
+        console.error('뉴스 업데이트 오류:', data);
+        throw new Error(data.message || '업데이트 중 오류가 발생했습니다.');
       }
 
-      // 성공
       toast({
         title: "성공",
-        description: "뉴스가 성공적으로 수정되었습니다.",
+        description: "뉴스가 성공적으로 업데이트되었습니다.",
       });
+
+      // 목록 페이지로 이동
       router.push('/admin/news');
     } catch (error) {
-      console.error('뉴스 수정 중 오류:', error);
+      console.error('뉴스 업데이트 오류:', error);
       toast({
-        title: "오류",
-        description: "뉴스 수정 중 오류가 발생했습니다.",
+        title: "업데이트 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
         variant: "destructive",
       });
     } finally {
@@ -711,7 +347,7 @@ export default function EditNewsPage(): JSX.Element {
   };
 
   const handleBackClick = () => {
-    router.back();
+    router.push('/admin/news');
   };
 
   if (isLoading) {
@@ -720,25 +356,7 @@ export default function EditNewsPage(): JSX.Element {
 
   return (
     <div className="container mx-auto p-6">
-      {errorMessage && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>오류</AlertTitle>
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      )}
-      
-      {showSuccess && (
-        <Alert className="mb-6 bg-green-50 border-green-200">
-          <Check className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-800">저장 완료</AlertTitle>
-          <AlertDescription className="text-green-700">
-            뉴스 내용이 성공적으로 저장되었습니다.
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      <NewsEditForm
+      <ContentForm
         formData={formData}
         setFormData={setFormData}
         handleSubmit={handleSubmit}
@@ -748,6 +366,9 @@ export default function EditNewsPage(): JSX.Element {
         handleAuthorChange={handleAuthorChange}
         handleTagChange={handleTagChange}
         handleBackClick={handleBackClick}
+        contentType="news"
+        isEditMode={true}
+        categories={NEWS_CATEGORIES}
       />
     </div>
   );

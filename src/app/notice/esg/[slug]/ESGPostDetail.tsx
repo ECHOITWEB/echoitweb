@@ -18,6 +18,8 @@ interface MultiLingual {
 
 interface Author {
   name: string;
+  username?: string;
+  role?: string;
   department?: string;
   _id?: string;
 }
@@ -200,12 +202,36 @@ export default function ESGPostDetail({ post }: ESGPostDetailProps) {
     if (!post.author) return '미지정';
     
     if (typeof post.author === 'string') {
-      return '미지정';
+      try {
+        // JSON 문자열인지 확인
+        const parsedAuthor = JSON.parse(post.author);
+        if (parsedAuthor && parsedAuthor.name) {
+          const roleName = parsedAuthor.role === 'admin' ? '관리자' : 
+                          parsedAuthor.role === 'editor' ? '편집자' : '조회자';
+          return `${parsedAuthor.name}(${roleName})`;
+        }
+      } catch (e) {
+        // JSON이 아니면 무시
+        return '미지정';
+      }
     }
     
     if (typeof post.author === 'object') {
+      // name과 role이 있는 경우 'name(role)' 형식으로 표시
+      if (post.author.name && post.author.role) {
+        const roleName = post.author.role === 'admin' ? '관리자' : 
+                        post.author.role === 'editor' ? '편집자' : '조회자';
+        return `${post.author.name}(${roleName})`;
+      }
+      
+      // name만 있는 경우
       if (post.author.name) {
         return post.author.name;
+      }
+      
+      // username만 있는 경우
+      if (post.author.username) {
+        return post.author.username;
       }
     }
     
@@ -214,12 +240,6 @@ export default function ESGPostDetail({ post }: ESGPostDetailProps) {
 
   // 작성자 부서를 가져오는 함수
   const getAuthorDepartment = (): string => {
-    if (!post.author) return '';
-    
-    if (typeof post.author === 'object' && post.author.department) {
-      return post.author.department;
-    }
-    
     return '';
   };
 

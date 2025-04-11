@@ -59,7 +59,21 @@ export async function POST(req: NextRequest) {
     let slug;
     try {
       console.log('슬러그 생성 시도 중 - 입력값:', typeof title === 'object' ? JSON.stringify(title) : title);
-      slug = await createSlug(title);
+      
+      // title이 짧은 경우 타임스탬프 추가하여 중복 방지
+      let titleForSlug = { ...(typeof title === 'object' ? title : { ko: title }) };
+      let customTitle = typeof title === 'string' ? title : title.ko || '';
+      
+      if (customTitle.length < 5) {
+        customTitle = `${customTitle}-${Date.now()}`;
+        if (typeof titleForSlug === 'object') {
+          titleForSlug.ko = customTitle;
+        } else {
+          titleForSlug = { ko: customTitle };
+        }
+      }
+      
+      slug = await createSlug(titleForSlug);
       console.log('슬러그 생성 완료:', slug);
       
       if (!slug) {
@@ -74,13 +88,15 @@ export async function POST(req: NextRequest) {
 
     // 작성자 정보 구성
     let authorData: any = {
-      name: '관리자',
-      department: AuthorDepartment.ADMIN
+      name: user.username || '관리자',
+      email: user.email || '',
+      username: user.username || '관리자',
+      role: user.role || 'admin'
     };
     
     try {
       // author가 ID인 경우 사용자 정보 조회
-      if (typeof author === 'string' && author.length > 10) {
+      if (typeof author === 'string' && author.length > 10 && author !== 'current_user') {
         // MongoDB ID 형식인 경우 사용자 정보 조회 시도
         console.log('사용자 ID로 작성자 정보 조회 시도:', author);
         const userInfo = await User.findById(author);
@@ -109,19 +125,45 @@ export async function POST(req: NextRequest) {
           }
           
           authorData = {
-            id: userInfo._id.toString(),
             name: displayName,
-            department: role === 'admin' ? AuthorDepartment.ADMIN : 
-                        role === 'editor' ? AuthorDepartment.EDITOR : 
-                        AuthorDepartment.USER
+            email: userInfo.email || '',
+            username: userInfo.username,
+            role: role
           };
         } else {
           console.log('작성자 사용자 정보를 찾을 수 없음:', author);
         }
       } else if (typeof author === 'object' && author !== null) {
+        // author가 이미 객체인 경우 (AuthorSelect에서 전달된 경우)
+        try {
+          // JSON 문자열로 넘어온 경우 파싱
+          let authorObj = author;
+          if (typeof author === 'string') {
+            authorObj = JSON.parse(author);
+          }
+          
+          authorData = {
+            name: authorObj.name || user.username || '관리자',
+            email: authorObj.email || user.email || '',
+            username: authorObj.username || user.username || '관리자',
+            role: authorObj.role || user.role || 'admin'
+          };
+        } catch (error) {
+          console.error('작성자 정보 파싱 중 오류:', error);
+          authorData = {
+            name: user.username || '관리자',
+            email: user.email || '',
+            username: user.username || '관리자',
+            role: user.role || 'admin'
+          };
+        }
+      } else if (!author || author === 'current_user') {
+        // 현재 사용자 정보 사용 (이미 기본값으로 설정되어 있음)
         authorData = {
-          name: author.name || '관리자',
-          department: author.department || AuthorDepartment.ADMIN
+          name: user.username || '관리자',
+          email: user.email || '',
+          username: user.username || '관리자',
+          role: user.role || 'admin'
         };
       }
     } catch (error) {
@@ -129,7 +171,9 @@ export async function POST(req: NextRequest) {
       // 오류 발생 시 기본값 사용
       authorData = {
         name: user.username || '관리자',
-        department: AuthorDepartment.ADMIN
+        email: user.email || '',
+        username: user.username || '관리자',
+        role: user.role || 'admin'
       };
     }
     
@@ -139,28 +183,47 @@ export async function POST(req: NextRequest) {
       author: JSON.stringify(authorData)
     });
 
-    const post = await ESGPostModel.create({
-      title,
-      slug,
-      summary,
-      content,
-      category,
-      author: authorData,
-      publishDate: publishDate || new Date(),
-      imageSource,
-      thumbnailUrl: imageSource, // 이미지 필드 호환성
-      isPublished: true,
-      viewCount: 0,
-      tags: tags || []
-    });
-    
-    console.log('ESG 포스트 생성 성공:', post._id);
+    try {
+      const post = await ESGPostModel.create({
+        title,
+        slug,
+        summary,
+        content,
+        category,
+        author: authorData,
+        publishDate: publishDate || new Date(),
+        imageSource,
+        thumbnailUrl: imageSource, // 이미지 필드 호환성
+        isPublished: true,
+        viewCount: 0,
+        tags: tags || []
+      });
+      
+      console.log('ESG 포스트 생성 성공:', post._id);
 
-    return NextResponse.json({ 
-      success: true,
-      message: 'ESG 포스트가 성공적으로 생성되었습니다.',
-      post 
-    });
+      return NextResponse.json({ 
+        success: true,
+        message: 'ESG 포스트가 성공적으로 생성되었습니다.',
+        post 
+      });
+    } catch (error: any) {
+      console.error('ESG 포스트 생성 데이터베이스 오류:', error);
+      
+      // 중복 키 오류 (슬러그 중복) 처리
+      if (error.code === 11000 && error.keyPattern?.slug) {
+        return NextResponse.json(
+          { 
+            success: false,
+            error: '중복된 제목입니다. 다른 제목을 사용해 주세요. 짧은 제목의 경우 내용을 조금 더 구체적으로 작성해 주세요.',
+            details: '슬러그 중복 오류',
+            duplicateKey: error.keyValue?.slug
+          },
+          { status: 409 }
+        );
+      }
+      
+      throw error; // 다른 오류는 그대로 전달
+    }
   } catch (error: any) {
     console.error('ESG 포스트 생성 중 오류 발생:', error);
     return NextResponse.json(

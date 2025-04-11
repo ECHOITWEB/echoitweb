@@ -18,25 +18,27 @@ export function NewsCard({ post, variant = 'default' }: NewsCardProps) {
 
   // DB 데이터와 더미 데이터 모두 지원하기 위한 헬퍼 함수
   const getTitle = (post: any) => {
-    if (post.title && typeof post.title === 'object' && post.title[language]) {
-      return post.title[language];
+    if (typeof post.title === 'object') {
+      return post.title[language] || post.title.ko || '제목 없음';
     }
     return post.title || '제목 없음';
   };
-
+  
   const getSummary = (post: any) => {
-    if (post.summary && typeof post.summary === 'object' && post.summary[language]) {
-      return post.summary[language];
+    if (typeof post.summary === 'object') {
+      return post.summary[language] || post.summary.ko || '';
     }
-    // 이전 형식과의 호환성
-    if (post.excerpt && typeof post.excerpt === 'object' && post.excerpt[language]) {
-      return post.excerpt[language];
+    if (typeof post.excerpt === 'object') {
+      return post.excerpt[language] || post.excerpt.ko || '';
     }
     return post.summary || post.excerpt || '';
   };
 
   const getImageUrl = (post: any) => {
-    return post.imageSource || post.imageSrc || '/images/placeholder-news.jpg';
+    if (post.imageSource && typeof post.imageSource === 'object') {
+      return post.imageSource.thumbnail || post.imageSource.original || '/images/placeholder-news.jpg';
+    }
+    return post.imageSrc || '/images/placeholder-news.jpg';
   };
 
   const getDate = (post: any) => {

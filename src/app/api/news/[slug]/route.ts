@@ -38,10 +38,10 @@ export async function GET(
       success: true,
       post: {
         id: post._id,
-        title: post.title,
+        title: typeof post.title === 'object' ? post.title : { ko: post.title },
         slug: post.slug,
-        content: post.content,
-        excerpt: post.excerpt,
+        content: typeof post.content === 'object' ? post.content : { ko: post.content },
+        excerpt: typeof post.excerpt === 'object' ? post.excerpt : { ko: post.excerpt },
         coverImage: post.coverImage,
         author: post.author,
         published: post.published,

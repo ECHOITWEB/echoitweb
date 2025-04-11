@@ -37,6 +37,11 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // 토큰 만료 시간 설정 확인
+    const accessTokenExpiry = process.env.JWT_EXPIRY || '30d';
+    const refreshTokenExpiry = process.env.JWT_REFRESH_EXPIRY || '60d';
+    console.log(`토큰 만료 설정: 액세스 토큰=${accessTokenExpiry}, 리프레시 토큰=${refreshTokenExpiry}`);
+
     // 리프레시 토큰 검증
     let decoded;
     try {
@@ -82,7 +87,7 @@ export async function POST(request: NextRequest) {
         role: user.role 
       },
       jwtSecret,
-      { expiresIn: '1h' }
+      { expiresIn: accessTokenExpiry }
     );
 
     const newRefreshToken = jwt.sign(
@@ -92,7 +97,7 @@ export async function POST(request: NextRequest) {
         email: user.email
       },
       jwtSecret,
-      { expiresIn: '7d' }
+      { expiresIn: refreshTokenExpiry }
     );
 
     console.log(`토큰 갱신 성공: 사용자 ID ${userId}`);
@@ -113,8 +118,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: '토큰이 갱신되었습니다.',
-      accessToken,
-      refreshToken: newRefreshToken
+      tokens: {
+        accessToken,
+        refreshToken: newRefreshToken
+      }
     });
   } catch (error: any) {
     console.error('토큰 갱신 중 오류 발생:', error);
