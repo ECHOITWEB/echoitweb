@@ -84,6 +84,33 @@ export default function CreateESGPage(): JSX.Element {
     originalPath: ''
   });
 
+  // 작성자 옵션 상태 (예제: 현재 사용자만 존재하는 옵션)
+  const [authorOptions, setAuthorOptions] = useState<{ label: string; value: string }[]>([
+    { label: '현재 사용자', value: 'current_user' }
+  ]);
+
+  // 필요시, 실제 사용자 목록을 API로 불러오는 예제
+  /*
+  useEffect(() => {
+    async function fetchAuthors() {
+      try {
+        const res = await fetch('/api/users'); // 실제 API 경로로 수정
+        const users = await res.json();
+        const options = users
+          .filter((user: any) => ['admin', 'editor'].includes(user.role))
+          .map((user: any) => ({
+            label: user.name,
+            value: user.id,
+          }));
+        setAuthorOptions(options);
+      } catch (err) {
+        console.error('작성자 목록 불러오기 실패:', err);
+      }
+    }
+    fetchAuthors();
+  }, []);
+  */
+
   const validateForm = (): boolean => {
     const newErrors: FormError[] = [];
 
@@ -229,6 +256,7 @@ export default function CreateESGPage(): JSX.Element {
         contentType="esg"
         isEditMode={false}
         categories={ESG_CATEGORIES}
+        authorOptions={authorOptions}
       />
     </div>
   );
