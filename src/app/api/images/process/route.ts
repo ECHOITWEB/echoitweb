@@ -25,11 +25,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '필수 파라미터가 누락되었습니다.' }, { status: 400 });
     }
 
+    const imageSource = null;
+
     // 이미지 생성 및 처리
-    const imageUrls = await processAndSaveImage({
+    const imageUrls = await processAndSaveImage(
+      imageSource,
       type,
       title,
-    });
+      true
+    );
 
     return NextResponse.json({
       message: '이미지가 성공적으로 생성되었습니다.',

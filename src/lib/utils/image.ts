@@ -124,7 +124,7 @@ export async function processAndSaveImage(
       if (!aiImage) {
         throw new Error('AI 이미지 생성에 실패했습니다.');
       }
-      originalImage = Buffer.from(aiImage, 'base64');
+      originalImage = aiImage;
       originalPath = join(uploadDir, `${Date.now()}.png`);
     } else if (imageSource) {
       if (Buffer.isBuffer(imageSource)) {
